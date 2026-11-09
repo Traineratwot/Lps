@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { accessSync, constants, existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { bold, cyan, dim, green, red, yellow } from "../ui/style.ts";
 import type { LpsConfig } from "../../core/config.ts";
@@ -21,11 +21,32 @@ export async function runDoctor(config: LpsConfig): Promise<void> {
   const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
   rows.push([
     "root",
-    isRoot ? "yes" : "no (scan needs sudo; read-only commands may work)",
+    isRoot ? "yes" : "no (only `scan` needs sudo; queries work without it)",
     isRoot ? "ok" : "warn",
   ]);
 
-  rows.push(["database", config.dbPath, "ok"]);
+  const onPath = Bun.which("lps");
+  rows.push([
+    "lps on PATH",
+    onPath ?? "not installed — run: bun run build:install",
+    onPath ? "ok" : "warn",
+  ]);
+
+  const dbExists = existsSync(config.dbPath);
+  let dbWritable = false;
+  try {
+    accessSync(config.dbPath, constants.W_OK);
+    dbWritable = true;
+  } catch {
+    dbWritable = false;
+  }
+  rows.push([
+    "database",
+    dbExists
+      ? `${config.dbPath} (${dbWritable ? "read-write" : "read-only for you"})`
+      : `${config.dbPath} (missing — run: sudo lps scan)`,
+    dbExists ? "ok" : "warn",
+  ]);
 
   const tools: Array<[string, string]> = [
     ["dpkg", "dpkg"],
@@ -43,6 +64,6 @@ export async function runDoctor(config: LpsConfig): Promise<void> {
 
   for (const [name, value, status] of rows) {
     const mark = status === "ok" ? green("✓") : status === "warn" ? yellow("!") : red("✗");
-    console.log(`${mark} ${bold(name.padEnd(20))} ${dim(value)}`);
+    console.log(`${mark} ${bold(name.padEnd(16))} ${dim(value)}`);
   }
 }

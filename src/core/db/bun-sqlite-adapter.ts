@@ -395,14 +395,30 @@ export class BunSqliteAdapter extends BunSqliteQueryable implements SqlDriverAda
 }
 
 export type BunSqliteAdapterConfig = {
-  /** Filesystem path or ":memory:". */
+  /** Filesystem path, ":memory:", or a file: URL. */
   url: string;
   readonly?: boolean;
   create?: boolean;
 };
 
+/**
+ * Normalizes a SQLite URL to a filesystem path.
+ * Accepts plain paths and both file: forms Prisma tools produce —
+ * `file:./dev.db` (classic) and `file://./dev.db` (Prisma 7 / Studio).
+ * `fileURLToPath` is not used: it resolves `file:./x` to `/x` and rejects
+ * the `file://./x` form outright.
+ */
+export function sqlitePath(url: string): string {
+  if (url === ":memory:") return url;
+  if (!url.startsWith("file:")) return url;
+  let rest = url.slice("file:".length);
+  if (rest.startsWith("//")) rest = rest.slice(2);
+  if (rest.startsWith("localhost/")) rest = rest.slice("localhost".length);
+  return rest || url;
+}
+
 function openDatabase(config: BunSqliteAdapterConfig): Database {
-  const path = config.url.replace(/^file:/, "");
+  const path = sqlitePath(config.url);
   const db = new Database(path, {
     create: config.create ?? true,
     readonly: config.readonly ?? false,

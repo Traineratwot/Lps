@@ -6,7 +6,8 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    // .env подхватывается bun, но конфиг может читаться раньше — страхуемся fallback'ом
-    url: process.env.DATABASE_URL ?? "file:./dev.db",
+    // Prisma 7 / Studio требуют форму file://<path>; file:<path> Studio
+    // отвергает ("not supported for the file:... protocol", studio#1578).
+    url: process.env.DATABASE_URL ?? "file://./dev.db",
   },
 });

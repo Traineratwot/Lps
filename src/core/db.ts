@@ -5,11 +5,17 @@ import { MIGRATIONS } from "./db/schema-sql.ts";
 
 export type Db = PrismaClient;
 
+export type CreateDbOptions = {
+  /** Open without write access (for read-only commands run as non-root). */
+  readonly?: boolean;
+};
+
 /** Creates a Prisma client bound to a SQLite file via the bundled bun:sqlite adapter. */
-export function createDb(dbPath: string): PrismaClient {
+export function createDb(dbPath: string, options: CreateDbOptions = {}): PrismaClient {
   const adapter = new BunSqliteAdapterFactory({
     url: dbPath,
-    create: true,
+    create: !options.readonly,
+    readonly: options.readonly ?? false,
   });
   return new PrismaClient({ adapter });
 }
@@ -24,6 +30,7 @@ export async function ensureSchema(dbPath: string): Promise<void> {
   const raw = new Database(dbPath, { create: true });
   try {
     raw.exec("PRAGMA foreign_keys = ON");
+    raw.exec("PRAGMA busy_timeout = 5000");
     raw.exec(`CREATE TABLE IF NOT EXISTS "Meta" ("key" TEXT NOT NULL PRIMARY KEY, "value" TEXT NOT NULL)`);
     const row = raw
       .query(`SELECT "value" FROM "Meta" WHERE "key" = 'applied_migrations'`)

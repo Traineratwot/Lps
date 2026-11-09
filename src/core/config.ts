@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { listUsers } from "./util/users.ts";
 
@@ -14,16 +15,12 @@ export type LpsConfig = {
   noIcons: boolean;
 };
 
-const DEFAULT_DATA_DIR = "/var/lib/lps";
+const SYSTEM_DATA_DIR = "/var/lib/lps";
 
 function defaultDataDir(): string {
-  try {
-    if (typeof process.getuid === "function" && process.getuid() === 0) {
-      return DEFAULT_DATA_DIR;
-    }
-  } catch {
-    // fall through
-  }
+  // /var/lib/lps is the canonical location once installed (created by
+  // `bun run build:install`); fall back to a user dir for uninstalled runs.
+  if (existsSync(SYSTEM_DATA_DIR)) return SYSTEM_DATA_DIR;
   return join(process.env.HOME ?? "/tmp", ".local", "share", "lps");
 }
 
@@ -33,6 +30,8 @@ export type ConfigOverrides = Partial<
 
 export function resolveConfig(overrides: ConfigOverrides = {}): LpsConfig {
   const dataDir = resolve(overrides.dataDir ?? process.env.LPS_DATA_DIR ?? defaultDataDir());
+  // Canonical DB path for everyone (root scan + user queries hit the same
+  // file); override with --db / LPS_DB for experiments.
   const dbRaw = overrides.dbPath ?? process.env.LPS_DB ?? join(dataDir, "lps.db");
   const dbPath = isAbsolute(dbRaw) ? dbRaw : resolve(dbRaw);
 

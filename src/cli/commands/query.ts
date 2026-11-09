@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { accessSync, constants, existsSync, writeFileSync } from "node:fs";
 import type { LpsConfig } from "../../core/config.ts";
 import { createDb, ensureSchema, type Db } from "../../core/db.ts";
 import { renderTable } from "../ui/table.ts";
@@ -12,7 +12,30 @@ function limitOf(flags: Flags): number {
   return Number.isFinite(v) && v > 0 ? v : 50;
 }
 
+function isWritable(path: string): boolean {
+  try {
+    accessSync(path, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Opens the DB for read queries. Works without root on a root-owned DB:
+ * falls back to read-only mode, so `sudo lps scan` + `lps list` as a user
+ * is the normal workflow.
+ */
 async function openDb(config: LpsConfig): Promise<Db> {
+  const exists = existsSync(config.dbPath);
+  if (exists && !isWritable(config.dbPath)) {
+    return createDb(config.dbPath, { readonly: true });
+  }
+  if (!exists && !isWritable(config.dataDir)) {
+    console.error(red(`Database not found: ${config.dbPath}`));
+    console.error(`Run ${bold("sudo lps scan")} first, or pass ${bold("--db <path>")}.`);
+    process.exit(1);
+  }
   await ensureSchema(config.dbPath);
   return createDb(config.dbPath);
 }

@@ -28,16 +28,19 @@ export function printGlobalHelp(): void {
   }
   lines.push("");
   lines.push(`${bold("GLOBAL OPTIONS")}`);
-  lines.push(`  --db <path>          Database file (default: <data-dir>/lps.db)`);
+  lines.push(`  --db <path>          Database file (default: /var/lib/lps/lps.db)`);
   lines.push(`  --data-dir <path>    Data directory for icons (default: /var/lib/lps)`);
   lines.push(`  --users <a,b>        Users whose shell rc files are scanned for aliases`);
   lines.push(`  -h, --help           Show this help`);
   lines.push(`  -V, --version        Show version`);
   lines.push("");
+  lines.push(dim("  scan needs sudo; list/show/logs/export work without it (read-only)."));
+  lines.push("");
   lines.push(`${bold("EXAMPLES")}`);
-  lines.push(`  sudo lps scan`);
+  lines.push(`  bun run build:install            build and install to /usr/local/bin/lps`);
+  lines.push(`  sudo lps scan                    fill the index (root required)`);
   lines.push(`  sudo lps scan --only commands,packages`);
-  lines.push(`  lps list packages --type deb --search git`);
+  lines.push(`  lps list packages --type deb --search git    (works without sudo)`);
   lines.push(`  lps show git`);
   lines.push(`  lps logs 1234`);
   lines.push("");
