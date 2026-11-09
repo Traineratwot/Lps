@@ -7,7 +7,13 @@ export type PasswdEntry = {
   shell: string;
 };
 
-const SYSTEM_SHELLS = new Set(["/usr/sbin/nologin", "/bin/false", "/sbin/nologin", ""]);
+const SYSTEM_SHELLS = new Set(["/usr/sbin/nologin", "/bin/false", "/sbin/nologin", "/usr/bin/nologin", ""]);
+
+function isLoginShell(shell: string): boolean {
+  if (SYSTEM_SHELLS.has(shell)) return false;
+  // real interactive shells: bash, zsh, fish, dash, sh, ksh...
+  return /(?:^|/)(ba|z|fi|da|k)?sh$|fish$/.test(shell);
+}
 
 /** All login-capable users with their home directories (from /etc/passwd). */
 export function listUsers(): PasswdEntry[] {
@@ -20,7 +26,7 @@ export function listUsers(): PasswdEntry[] {
       const [name, , uidStr, , , home, shell] = parts as [string, string, string, string, string, string, string];
       const uid = Number.parseInt(uidStr, 10);
       if (!Number.isFinite(uid)) continue;
-      if (SYSTEM_SHELLS.has(shell)) continue;
+      if (!isLoginShell(shell)) continue;
       if (!home || !home.startsWith("/") || !existsSync(home)) continue;
       result.push({ name, uid, home, shell });
     }

@@ -16,6 +16,8 @@ import { listAppImagePackages } from "../../modules/sources/appimage.ts";
 import { scanDesktopEntries } from "../../modules/desktop/entries.ts";
 import { extractIcon, resolveIcon } from "../../modules/desktop/icons.ts";
 import { execCommandName } from "../../core/util/text.ts";
+import { bootTime, computeMetrics, listProcesses, startedAtIso } from "../../core/util/proc.ts";
+import { listUsers } from "../../core/util/users.ts";
 
 export type ScanOptions = {
   only?: string[];
@@ -39,6 +41,7 @@ export type ScanCtx = {
   config: LpsConfig;
   db: Db;
   distro: Awaited<ReturnType<typeof detectDistro>>;
+  scanRunId: number;
   /** Shared across stages so flatpak/appimage are collected once per scan. */
   links?: LinkIndex;
 };
@@ -401,6 +404,104 @@ async function runDesktopStage(ctx: ScanCtx): Promise<StageStats> {
 }
 
 // ---------------------------------------------------------------------------
+// Stage: processes (one-shot snapshot of /proc)
+// ---------------------------------------------------------------------------
+
+async function runProcessesStage(ctx: ScanCtx): Promise<StageStats> {
+  const stats = EMPTY_STATS();
+  const procs = listProcesses();
+  stats.found = procs.length;
+
+  const { linkIndex } = await collectPackages(ctx);
+  const pkgRows = await ctx.db.package.findMany({ select: { id: true, type: true, name: true } });
+  const pkgIds = new Map(pkgRows.map((p) => [`${p.type}:${p.name}`, p.id]));
+
+  const commands = await ctx.db.command.findMany({
+    select: { id: true, name: true, path: true, realPath: true, kind: true, packageId: true },
+  });
+  const byRealPath = new Map<string, number>();
+  const byPath = new Map<string, number>();
+  const byName = new Map<string, number>();
+  for (const cmd of commands) {
+    if (cmd.realPath && !byRealPath.has(cmd.realPath)) byRealPath.set(cmd.realPath, cmd.id);
+    if (cmd.path && !byPath.has(cmd.path)) byPath.set(cmd.path, cmd.id);
+    if (cmd.kind === "exec" && !byName.has(cmd.name)) byName.set(cmd.name, cmd.id);
+  }
+
+  const userByUid = new Map(listUsers().map((u) => [u.uid, u.name]));
+  const btime = bootTime();
+  const nowSec = Date.now() / 1000;
+  const observedAt = new Date();
+  const bar = new ProgressBar("processes", procs.length);
+
+  try {
+    for (const proc of procs) {
+      const startedAt = new Date(startedAtIso(proc, btime));
+      const { uptimeSec, cpuPercent } = computeMetrics(proc, nowSec, btime);
+
+      const cmdName = proc.cmdline.split(/\s+/)[0]?.split("/").pop() || proc.comm;
+      const commandId =
+        (proc.exePath ? (byRealPath.get(proc.exePath) ?? byPath.get(proc.exePath)) : undefined) ??
+        byName.get(cmdName);
+
+      const pkgRef = proc.exePath ? linkIndex.get(proc.exePath) : undefined;
+      let packageId = pkgRef ? pkgIds.get(pkgRef) : undefined;
+      if (!packageId && commandId) {
+        packageId = commands.find((c) => c.id === commandId)?.packageId ?? undefined;
+      }
+
+      const row = await ctx.db.process.upsert({
+        where: { pid_startedAt: { pid: proc.pid, startedAt } },
+        create: {
+          pid: proc.pid,
+          startedAt,
+          ppid: proc.ppid,
+          uid: proc.uid,
+          user: proc.uid != null ? (userByUid.get(proc.uid) ?? "") : "",
+          cmdline: proc.cmdline,
+          exePath: proc.exePath,
+          isKernel: proc.isKernel,
+          commandId: commandId ?? null,
+          packageId: packageId ?? null,
+        },
+        update: {
+          ppid: proc.ppid,
+          uid: proc.uid,
+          user: proc.uid != null ? (userByUid.get(proc.uid) ?? "") : "",
+          cmdline: proc.cmdline,
+          exePath: proc.exePath,
+          isKernel: proc.isKernel,
+          commandId: commandId ?? null,
+          packageId: packageId ?? null,
+        },
+      });
+
+      await ctx.db.processSnapshot.create({
+        data: {
+          scanRunId: ctx.scanRunId,
+          processId: row.id,
+          observedAt,
+          uptimeSec,
+          cpuPercent,
+          rssKb: proc.rssKb,
+          state: proc.state,
+          threads: proc.numThreads,
+        },
+      });
+
+      stats.written++;
+      if (commandId || packageId) stats.linked++;
+      bar.tick(proc.comm);
+    }
+    bar.done(`${stats.written} processes, ${stats.linked} linked`);
+  } catch (error) {
+    stats.errors++;
+    bar.fail(error instanceof Error ? error.message : String(error));
+  }
+  return stats;
+}
+
+// ---------------------------------------------------------------------------
 // Pipeline
 // ---------------------------------------------------------------------------
 
@@ -409,6 +510,7 @@ const STAGES: Stage[] = [
   { id: "docs", title: "docs", run: runDocsStage },
   { id: "packages", title: "packages", run: runPackagesStage },
   { id: "desktop", title: "desktop", run: runDesktopStage },
+  { id: "processes", title: "processes", run: runProcessesStage },
 ];
 
 export async function runScan(config: LpsConfig, options: ScanOptions = {}): Promise<void> {
@@ -435,7 +537,7 @@ export async function runScan(config: LpsConfig, options: ScanOptions = {}): Pro
     },
   });
 
-  const ctx: ScanCtx = { config, db, distro };
+  const ctx: ScanCtx = { config, db, distro, scanRunId: scanRun.id };
   const totals: Record<string, StageStats> = {};
 
   for (const stage of selected) {
