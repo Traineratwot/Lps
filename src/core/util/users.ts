@@ -12,7 +12,7 @@ const SYSTEM_SHELLS = new Set(["/usr/sbin/nologin", "/bin/false", "/sbin/nologin
 function isLoginShell(shell: string): boolean {
   if (SYSTEM_SHELLS.has(shell)) return false;
   // real interactive shells: bash, zsh, fish, dash, sh, ksh...
-  return /(?:^|/)(ba|z|fi|da|k)?sh$|fish$/.test(shell);
+  return /(?:^|\/)(ba|z|fi|da|k)?sh$|fish$/.test(shell);
 }
 
 /** All login-capable users with their home directories (from /etc/passwd). */
