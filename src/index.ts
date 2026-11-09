@@ -2,6 +2,7 @@
 import { flagBool, flagList, flagString, parseArgs } from "./cli/args.ts";
 import { printCommandHelp, printGlobalHelp, printVersion } from "./cli/help.ts";
 import { runDoctor, runInit } from "./cli/commands/system.ts";
+import { runScan } from "./cli/commands/scan.ts";
 import { red, yellow } from "./cli/ui/style.ts";
 import { resolveConfig } from "./core/config.ts";
 
@@ -50,6 +51,9 @@ async function main(): Promise<void> {
     case "doctor":
       await runDoctor(config);
       break;
+    case "scan":
+      await runScan(config, { only: flagList(flags, "only") });
+      break;
     case "db": {
       const sub = positionals[0];
       if (sub === "path" || sub === undefined) {
@@ -60,7 +64,6 @@ async function main(): Promise<void> {
       }
       break;
     }
-    case "scan":
     case "list":
     case "show":
     case "logs":

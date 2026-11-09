@@ -39,7 +39,7 @@ model Command {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  @@unique([name, path])
+  @@unique([name, path, kind])
   @@index([name])
   @@index([realPath])
 }

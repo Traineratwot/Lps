@@ -46,3 +46,45 @@ Prisma 7 тоже работает без Rust-движка (обязатель�
 **Решение**: написать тонкий свой адаптер `src/core/db/bun-sqlite-adapter.ts`
 по контракту `@prisma/driver-adapter-utils` (SqlDriverAdapterFactory / SqlDriverAdapter)
 поверх `bun:sqlite`. Объём ~100–150 строк, полный контроль над single-file сборкой.
+
+---
+
+## P3. Парсер `/etc/os-release` не понимал значения без кавычек
+
+**Дата**: этап 1
+**Статус**: решено
+
+Regex требовал закрывающую кавычку (`^ID="?([^"\n]*)"` → не матчился `ID=ubuntu`
+без кавычек). `detectDistro` падал с «Unsupported distribution: unknown».
+
+**Решение**: поддержать обе формы — `KEY="value"` и `KEY=value`:
+`^KEY=(?:"([^"]*)"|([^\n]*))`.
+
+---
+
+## P4. Коллизия уникального ключа Command: alias и builtin с одним именем
+
+**Дата**: этап 1
+**Статус**: решено (миграция)
+
+`@@unique([name, path])` не различал alias и builtin — у обоих `path=""`
+(например, `cd` как builtin и `cd` как alias). Пришлось развернуть ключ
+до `@@unique([name, path, kind])` миграцией `command_identity_includes_kind`.
+
+**Побочный эффект**: `prisma migrate dev` в неинтерактивной среде (pipe/CI)
+падает с «environment is non-interactive». Миграции создаются вручную:
+`prisma migrate diff --from-migrations ... --to-schema ... --script` →
+новая папка в `prisma/migrations/` → `prisma migrate deploy`.
+Затем обязательно `bun run schema:sync` для embedded-миграций.
+
+---
+
+## P5. `bun run` добавляет `node_modules/.bin` в PATH при сканировании
+
+**Дата**: этап 1
+**Статус**: принято (не баг)
+
+Скан, запущенный через `bun run src/index.ts scan`, видит в PATH каталоги
+`node_modules/.bin` и shim-каталог Bun — это артефакт запуска через bun run.
+Скомпилированный бинарник (`dist/lps`) запускается с чистым PATH пользователя.
+Не исправляем: PATH — источник истины о доступных командах.

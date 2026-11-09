@@ -1,0 +1,85 @@
+import { lstatSync, readlinkSync, realpathSync, readdirSync, statSync } from "node:fs";
+import { basename, join } from "node:path";
+
+export type EntryInfo = {
+  name: string;
+  path: string;
+  realPath: string;
+  isSymlink: boolean;
+  size: number;
+  mode: number;
+  ownerId: number;
+  isDir: boolean;
+};
+
+/** Lists immediate children of a directory; missing dir → empty array. */
+export function listDir(dir: string): string[] {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
+}
+
+/** Stats a path entry; returns null when missing or unreadable. */
+export function statEntry(path: string): EntryInfo | null {
+  try {
+    const st = lstatSync(path);
+    const isSymlink = st.isSymbolicLink();
+    let realPath = path;
+    let size = st.size;
+    let mode = st.mode;
+    let ownerId = st.uid;
+    let isDir = st.isDirectory();
+    if (isSymlink) {
+      try {
+        const target = statSync(path); // follows the link
+        realPath = realpathSync(path);
+        size = target.size;
+        mode = target.mode;
+        ownerId = target.uid;
+        isDir = target.isDirectory();
+      } catch {
+        return null; // broken symlink
+      }
+    }
+    return {
+      name: basename(path),
+      path,
+      realPath,
+      isSymlink,
+      size,
+      mode,
+      ownerId,
+      isDir,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function isExecutableFile(info: EntryInfo): boolean {
+  return !info.isDir && (info.mode & 0o111) !== 0;
+}
+
+export function joinSafe(dir: string, name: string): string {
+  return join(dir, name);
+}
+
+/** Resolves a symlink chain; returns the input path on failure. */
+export function realPathOr(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
+
+/** Reads a symlink target without following it. */
+export function readLinkOrNull(path: string): string | null {
+  try {
+    return readlinkSync(path);
+  } catch {
+    return null;
+  }
+}

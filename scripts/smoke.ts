@@ -5,7 +5,7 @@ await ensureSchema(dbPath);
 const db = createDb(dbPath);
 
 await db.command.upsert({
-  where: { name_path: { name: "git", path: "/usr/bin/git" } },
+  where: { name_path_kind: { name: "git", path: "/usr/bin/git", kind: "exec" } },
   create: { name: "git", kind: "exec", path: "/usr/bin/git", realPath: "/usr/bin/git", source: "path" },
   update: { realPath: "/usr/bin/git" },
 });
