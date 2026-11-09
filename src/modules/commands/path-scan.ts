@@ -1,7 +1,7 @@
-import { homedir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
 import type { RawCommand } from "../../core/types.ts";
 import { isExecutableFile, listDir, statEntry } from "../../core/util/fs.ts";
+import { userHomeDirs } from "../../core/util/users.ts";
 
 /** Extra directories that export commands even when not on PATH. */
 const EXPORT_DIRS = [
@@ -16,10 +16,13 @@ function pathDirs(): string[] {
     .map((d) => d.trim())
     .filter(Boolean);
   const system = ["/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin"];
-  const home = homedir();
   const seen = new Set<string>();
   const dirs: string[] = [];
-  for (const dir of [...fromEnv, ...system, ...EXPORT_DIRS, resolve(home, ".local/bin"), resolve(home, ".local/share/flatpak/exports/bin")]) {
+  const perUser = userHomeDirs().flatMap((home) => [
+    resolve(home, ".local/bin"),
+    resolve(home, ".local/share/flatpak/exports/bin"),
+  ]);
+  for (const dir of [...fromEnv, ...system, ...EXPORT_DIRS, ...perUser]) {
     const abs = isAbsolute(dir) ? dir : resolve(dir);
     if (!seen.has(abs)) {
       seen.add(abs);

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type { RawCommand } from "../../core/types.ts";
+import { listUsers } from "../../core/util/users.ts";
 
 const ALIAS_RE = /^\s*alias\s+([A-Za-z0-9_.:-]+)=(['"])(.*?)\2\s*$/;
 const ALIAS_UNQUOTED_RE = /^\s*alias\s+([A-Za-z0-9_.:-]+)=(\S+)\s*$/;
@@ -32,10 +32,14 @@ function parseAliases(content: string, source: string): RawCommand[] {
   return result;
 }
 
+function homeFor(user: string): string {
+  const fromPasswd = listUsers().find((u) => u.name === user)?.home;
+  if (fromPasswd) return fromPasswd;
+  return user === "root" ? "/root" : join("/home", user);
+}
+
 function rcFilesFor(user: string): string[] {
-  const home = user === "root" ? "/root" : join("/home", user);
-  const fallbackHome = user === process.env.USER ? homedir() : null;
-  const base = existsSync(home) ? home : fallbackHome ?? home;
+  const base = homeFor(user);
   return [
     "/etc/bash.bashrc",
     "/etc/profile",

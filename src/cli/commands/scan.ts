@@ -1,6 +1,7 @@
 import { createDb, ensureSchema, type Db } from "../../core/db.ts";
 import type { LpsConfig } from "../../core/config.ts";
 import type { RawCommand, StageStats } from "../../core/types.ts";
+import type { RawPackage } from "../../modules/distro/types.ts";
 import { ProgressBar } from "../ui/progress.ts";
 import { bold, dim, green, yellow } from "../ui/style.ts";
 import { scanPathCommands } from "../../modules/commands/path-scan.ts";
@@ -9,6 +10,8 @@ import { scanBuiltins } from "../../modules/commands/builtins.ts";
 import { detectDistro } from "../../modules/distro/detect.ts";
 import { getManSummary } from "../../modules/docs/man.ts";
 import { getHelpSummary, type HelpSummary } from "../../modules/docs/help.ts";
+import { flatpakPathIndex, listFlatpakPackages } from "../../modules/sources/flatpak.ts";
+import { listAppImagePackages } from "../../modules/sources/appimage.ts";
 
 export type ScanOptions = {
   only?: string[];
@@ -154,12 +157,40 @@ async function runDocsStage(ctx: ScanCtx): Promise<StageStats> {
 }
 
 // ---------------------------------------------------------------------------
-// Stage: packages (deb; flatpak/appimage sources join in later stages)
+// Stage: packages (deb + flatpak + appimage)
 // ---------------------------------------------------------------------------
 
-async function upsertPackages(ctx: ScanCtx): Promise<{ stats: StageStats; ids: Map<string, number> }> {
+async function collectPackages(ctx: ScanCtx): Promise<{
+  packages: RawPackage[];
+  /** file path → `${type}:${name}` for linking */
+  linkIndex: Map<string, string>;
+}> {
+  const packages: RawPackage[] = [];
+  const linkIndex = new Map<string, string>();
+
+  const debPackages = await ctx.distro.listPackages();
+  packages.push(...debPackages);
+  for (const [path, name] of await ctx.distro.pathIndex()) {
+    linkIndex.set(path, `deb:${name}`);
+  }
+
+  const flatpakPackages = await listFlatpakPackages();
+  packages.push(...flatpakPackages);
+  for (const [path, appId] of await flatpakPathIndex()) {
+    linkIndex.set(path, `flatpak:${appId}`);
+  }
+
+  const appImages = await listAppImagePackages();
+  packages.push(...appImages);
+  for (const pkg of appImages) {
+    if (pkg.installPath) linkIndex.set(pkg.installPath, `appimage:${pkg.name}`);
+  }
+
+  return { packages, linkIndex };
+}
+
+async function upsertPackages(ctx: ScanCtx, raw: RawPackage[]): Promise<{ stats: StageStats; ids: Map<string, number> }> {
   const stats = EMPTY_STATS();
-  const raw = await ctx.distro.listPackages();
   stats.found = raw.length;
   const bar = new ProgressBar("packages", raw.length);
   const ids = new Map<string, number>();
@@ -204,16 +235,19 @@ async function upsertPackages(ctx: ScanCtx): Promise<{ stats: StageStats; ids: M
   return { stats, ids };
 }
 
-async function linkCommandsToPackages(ctx: ScanCtx, ids: Map<string, number>): Promise<number> {
-  const pathIndex = await ctx.distro.pathIndex();
+async function linkCommandsToPackages(
+  ctx: ScanCtx,
+  ids: Map<string, number>,
+  linkIndex: Map<string, string>,
+): Promise<number> {
   const commands = await ctx.db.command.findMany({
     select: { id: true, path: true, realPath: true, packageId: true },
   });
   const bar = new ProgressBar("link cmd→pkg", commands.length);
   let linked = 0;
   for (const cmd of commands) {
-    const pkgName = pathIndex.get(cmd.realPath) ?? (cmd.path ? pathIndex.get(cmd.path) : undefined);
-    const pkgId = pkgName ? ids.get(`deb:${pkgName}`) : undefined;
+    const ref = linkIndex.get(cmd.realPath) ?? (cmd.path ? linkIndex.get(cmd.path) : undefined);
+    const pkgId = ref ? ids.get(ref) : undefined;
     if (pkgId && pkgId !== cmd.packageId) {
       await ctx.db.command.update({ where: { id: cmd.id }, data: { packageId: pkgId } });
       linked++;
@@ -225,9 +259,31 @@ async function linkCommandsToPackages(ctx: ScanCtx, ids: Map<string, number>): P
 }
 
 async function runPackagesStage(ctx: ScanCtx): Promise<StageStats> {
-  const { stats, ids } = await upsertPackages(ctx);
-  stats.linked = await linkCommandsToPackages(ctx, ids);
+  const { packages, linkIndex } = await collectPackages(ctx);
+  const { stats, ids } = await upsertPackages(ctx, packages);
+  // AppImage files outside PATH are commands in their own right
+  await upsertAppImageCommands(ctx, packages);
+  stats.linked = await linkCommandsToPackages(ctx, ids, linkIndex);
   return stats;
+}
+
+async function upsertAppImageCommands(ctx: ScanCtx, packages: RawPackage[]): Promise<void> {
+  for (const pkg of packages) {
+    if (pkg.type !== "appimage" || !pkg.installPath) continue;
+    const name = pkg.installPath.split("/").pop() ?? pkg.name;
+    await ctx.db.command.upsert({
+      where: { name_path_kind: { name, path: pkg.installPath, kind: "exec" } },
+      create: {
+        name,
+        kind: "exec",
+        path: pkg.installPath,
+        realPath: pkg.installPath,
+        source: "appimage",
+        isSymlink: false,
+      },
+      update: { realPath: pkg.installPath, source: "appimage" },
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
-import { homedir, userInfo } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
+import { listUsers } from "./util/users.ts";
 
 export type LpsConfig = {
   /** Path to the SQLite database file. */
@@ -24,7 +24,7 @@ function defaultDataDir(): string {
   } catch {
     // fall through
   }
-  return join(homedir(), ".local", "share", "lps");
+  return join(process.env.HOME ?? "/tmp", ".local", "share", "lps");
 }
 
 export type ConfigOverrides = Partial<
@@ -38,11 +38,9 @@ export function resolveConfig(overrides: ConfigOverrides = {}): LpsConfig {
 
   let users = overrides.users ?? [];
   if (users.length === 0) {
-    try {
-      users = [userInfo().username];
-    } catch {
-      users = ["root"];
-    }
+    // all login users — aliases and per-user files of the whole system
+    users = listUsers().map((u) => u.name);
+    if (users.length === 0) users = ["root"];
   }
 
   return {
