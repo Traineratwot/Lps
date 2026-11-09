@@ -3,22 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDb, ensureSchema, type Db } from "./db.ts";
-import { BunSqliteAdapterFactory, sqlitePath } from "./db/bun-sqlite-adapter.ts";
-
-describe("sqlitePath", () => {
-  test("passes plain paths and :memory: through", () => {
-    expect(sqlitePath(":memory:")).toBe(":memory:");
-    expect(sqlitePath("/var/lib/lps/lps.db")).toBe("/var/lib/lps/lps.db");
-    expect(sqlitePath("./dev.db")).toBe("./dev.db");
-  });
-
-  test("handles both file: forms (studio#1578 regression)", () => {
-    expect(sqlitePath("file:./dev.db")).toBe("./dev.db");
-    expect(sqlitePath("file://./dev.db")).toBe("./dev.db");
-    expect(sqlitePath("file:///tmp/x.db")).toBe("/tmp/x.db");
-    expect(sqlitePath("file://localhost/tmp/x.db")).toBe("/tmp/x.db");
-  });
-});
+import { BunSqliteAdapterFactory } from "./db/bun-sqlite-adapter.ts";
 
 describe("bun:sqlite driver adapter", () => {
   const factory = new BunSqliteAdapterFactory({ url: ":memory:" });

@@ -153,3 +153,36 @@ Scan делает только upsert: удалённые пакеты/кома�
 
 `scripts/smoke.ts` повторял проверки `src/core/db.test.ts`. Удалён;
 `bun run test:smoke` запускает интеграционный тест.
+
+---
+
+## P11. Prisma 7: migrate и studio принимают разные формы SQLite URL
+
+**Дата**: после этапа 7 (вопрос «почему prisma studio не работает»)
+**Статус**: решено
+
+`bunx prisma studio` падал с
+`Prisma Studio is not supported for the "file:./dev.db" protocol`
+(прямое совпадение с prisma/studio#1578). Проба вариантов показала:
+
+| URL | `prisma studio` | `prisma migrate` |
+|---|---|---|
+| `file:./dev.db` | ✗ "not supported … protocol" | ✓ |
+| `file://./dev.db` | ✓ | ✗ "unable to open database file: //./dev.db" |
+| `file:///abs/path.db` | ✓ | ✓ |
+
+Итог: каноничная форма — **абсолютный `file:///...`**. `prisma.config.ts`
+нормализует любую входную форму через `normalizeSqliteUrl()`
+(`src/core/db/sqlite-url.ts`).
+
+Попутно:
+- `fileURLToPath` непригоден: `file:./x` превращает в `/x`, а `file://./x`
+  отвергает ("host must be localhost or empty") — ручной разбор;
+- `import.meta.dir` в `prisma.config.ts` ломает загрузку конфига под Node
+  (Prisma CLI грузит конфиг вне Bun) → `fileURLToPath(import.meta.url)`;
+- `bun:*/node:*` внутри блочного комментария оборвал его (`*/`) — тот же
+  класс ошибки, что в P8.
+
+**Правило**: `bunx prisma studio` и `migrate` безопасно запускать в любой
+форме URL — конфиг нормализует; проверка `bun run test` содержит
+`sqlite-url.test.ts`.

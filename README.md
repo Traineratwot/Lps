@@ -58,6 +58,17 @@ lps db path                   путь к файлу БД
 Глобальные опции: `--db <path>`, `--data-dir <path>` (иконки),
 `--users <a,b>`, `-h`, `-V`. Просмотр по `lps <cmd> --help`.
 
+## Просмотр базы (Prisma Studio)
+
+```bash
+bunx prisma studio                     # http://localhost:51212, открывает dev.db
+DATABASE_URL="file:///var/lib/lps/lps.db" bunx prisma studio   # продуктовая БД
+```
+
+Форма SQLite URL нормализуется в `prisma.config.ts` — работает с любым
+из видов `file:...` / `file://...` (в Prisma 7 `studio` и `migrate` требуют
+разных форм, см. PROBLEMS.md P11).
+
 ## Архитектура
 
 ```

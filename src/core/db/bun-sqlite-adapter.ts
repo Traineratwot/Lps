@@ -6,6 +6,7 @@
  * Value/type mapping follows @prisma/adapter-better-sqlite3.
  */
 import { Database, type SQLQueryBindings } from "bun:sqlite";
+import { sqlitePath } from "./sqlite-url.ts";
 import {
   ColumnTypeEnum,
   DriverAdapterError,
@@ -400,22 +401,6 @@ export type BunSqliteAdapterConfig = {
   readonly?: boolean;
   create?: boolean;
 };
-
-/**
- * Normalizes a SQLite URL to a filesystem path.
- * Accepts plain paths and both file: forms Prisma tools produce —
- * `file:./dev.db` (classic) and `file://./dev.db` (Prisma 7 / Studio).
- * `fileURLToPath` is not used: it resolves `file:./x` to `/x` and rejects
- * the `file://./x` form outright.
- */
-export function sqlitePath(url: string): string {
-  if (url === ":memory:") return url;
-  if (!url.startsWith("file:")) return url;
-  let rest = url.slice("file:".length);
-  if (rest.startsWith("//")) rest = rest.slice(2);
-  if (rest.startsWith("localhost/")) rest = rest.slice("localhost".length);
-  return rest || url;
-}
 
 function openDatabase(config: BunSqliteAdapterConfig): Database {
   const path = sqlitePath(config.url);

@@ -1,4 +1,11 @@
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "prisma/config";
+import { normalizeSqliteUrl } from "./src/core/db/sqlite-url.ts";
+
+// import.meta.dir is Bun-only; prisma CLI loads this config under Node too.
+const projectDir = dirname(fileURLToPath(import.meta.url));
+const rawUrl = process.env.DATABASE_URL ?? resolve(projectDir, "dev.db");
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -6,8 +13,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    // Prisma 7 / Studio требуют форму file://<path>; file:<path> Studio
-    // отвергает ("not supported for the file:... protocol", studio#1578).
-    url: process.env.DATABASE_URL ?? "file://./dev.db",
+    url: normalizeSqliteUrl(rawUrl, process.cwd()),
   },
 });
