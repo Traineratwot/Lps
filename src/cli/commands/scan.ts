@@ -7,6 +7,8 @@ import { scanPathCommands } from "../../modules/commands/path-scan.ts";
 import { scanAliases } from "../../modules/commands/aliases.ts";
 import { scanBuiltins } from "../../modules/commands/builtins.ts";
 import { detectDistro } from "../../modules/distro/detect.ts";
+import { getManSummary } from "../../modules/docs/man.ts";
+import { getHelpSummary, type HelpSummary } from "../../modules/docs/help.ts";
 
 export type ScanOptions = {
   only?: string[];
@@ -84,11 +86,80 @@ async function runCommandsStage(ctx: ScanCtx): Promise<StageStats> {
 }
 
 // ---------------------------------------------------------------------------
+// Stage: docs (man NAME summary, --help fallback)
+// ---------------------------------------------------------------------------
+
+async function runDocsStage(ctx: ScanCtx): Promise<StageStats> {
+  const stats = EMPTY_STATS();
+  const commands = await ctx.db.command.findMany({
+    select: { id: true, name: true, path: true, realPath: true, kind: true, aliasOf: true },
+    orderBy: { name: "asc" },
+  });
+  stats.found = commands.length;
+  const bar = new ProgressBar("docs", commands.length);
+  // symlinked binaries share one --help run
+  const helpCache = new Map<string, HelpSummary | null>();
+
+  try {
+    for (const cmd of commands) {
+      let summary = "";
+      let manPath = "";
+      let manSection = "";
+      let source = "none";
+      let helpFlag = "";
+
+      if (cmd.kind === "alias") {
+        summary = cmd.aliasOf;
+      } else {
+        const man = getManSummary(cmd.name);
+        if (man?.summary) {
+          summary = man.summary;
+          manPath = man.path;
+          manSection = man.section;
+          source = "man";
+        } else {
+          const cacheKey = cmd.realPath || cmd.path || cmd.name;
+          let help = helpCache.get(cacheKey);
+          if (help === undefined) {
+            help = getHelpSummary(cmd.name, cmd.path, cmd.kind as RawCommand["kind"]);
+            helpCache.set(cacheKey, help);
+          }
+          if (help) {
+            summary = help.summary;
+            helpFlag = help.flag;
+            source = "help";
+          }
+          if (man) {
+            manPath = man.path;
+            manSection = man.section;
+            if (source === "none") source = "man";
+          }
+        }
+      }
+
+      await ctx.db.commandDoc.upsert({
+        where: { commandId: cmd.id },
+        create: { commandId: cmd.id, summary, manPath, manSection, source, helpFlag },
+        update: { summary, manPath, manSection, source, helpFlag },
+      });
+      stats.written++;
+      bar.tick(cmd.name);
+    }
+    bar.done(`${stats.written} docs`);
+  } catch (error) {
+    stats.errors++;
+    bar.fail(error instanceof Error ? error.message : String(error));
+  }
+  return stats;
+}
+
+// ---------------------------------------------------------------------------
 // Pipeline
 // ---------------------------------------------------------------------------
 
 const STAGES: Stage[] = [
   { id: "commands", title: "commands", run: runCommandsStage },
+  { id: "docs", title: "docs", run: runDocsStage },
 ];
 
 export async function runScan(config: LpsConfig, options: ScanOptions = {}): Promise<void> {
@@ -97,7 +168,7 @@ export async function runScan(config: LpsConfig, options: ScanOptions = {}): Pro
 
   const selected = options.only?.length
     ? STAGES.filter((s) => options.only!.includes(s.id))
-    : STAGES;
+    : STAGES.filter((s) => !(config.skipDocs && s.id === "docs"));
   if (selected.length === 0) {
     console.error(yellow(`No stages selected. Available: ${STAGES.map((s) => s.id).join(", ")}`));
     return;
