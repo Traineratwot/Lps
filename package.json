@@ -1,0 +1,26 @@
+{
+  "name": "lps",
+  "version": "0.1.0",
+  "description": "LPS — index of installed and running programs for Debian/Ubuntu",
+  "type": "module",
+  "bin": {
+    "lps": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "generate": "prisma generate",
+    "migrate": "prisma migrate dev",
+    "schema:sync": "bun run scripts/gen-schema-sql.ts",
+    "build": "prisma generate && bun build ./src/index.ts --compile --outfile dist/lps",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@prisma/driver-adapter-utils": "7",
+    "@types/bun": "latest",
+    "prisma": "7",
+    "typescript": "^5.9.0"
+  },
+  "dependencies": {
+    "@prisma/client": "7"
+  }
+}

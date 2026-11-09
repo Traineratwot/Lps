@@ -1,0 +1,143 @@
+// LPS schema — Prisma ORM 7, SQLite
+// String-поля вместо enum (совместимо с SQLite); "" вместо null для уникальных ключей.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model ScanRun {
+  id         Int                @id @default(autoincrement())
+  startedAt  DateTime           @default(now())
+  finishedAt DateTime?
+  stages     String?                           // json: какие стадии выполнялись
+  stats      String?                           // json: счётчики стадий
+  snapshots  ProcessSnapshot[]
+}
+
+model Command {
+  id        Int           @id @default(autoincrement())
+  name      String                          // "git", "ll", "cd"
+  kind      String                          // exec | alias | builtin | alternative
+  path      String       @default("")       // "" для builtin/alias
+  realPath  String       @default("")       // realpath файла; "" если нет
+  aliasOf   String       @default("")       // раскрытие алиаса
+  source    String                          // path | alias | builtin | alternatives | flatpak-export | snap
+  isSymlink Boolean       @default(false)
+  size      Int?
+  mode      Int?
+  ownerId   Int?                            // uid владельца файла
+  packageId Int?
+  package   Package?      @relation(fields: [packageId], references: [id])
+  doc       CommandDoc?
+  desktopEntries DesktopEntry[]
+  processes Process[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([name, path])
+  @@index([name])
+  @@index([realPath])
+}
+
+model CommandDoc {
+  id         Int      @id @default(autoincrement())
+  commandId  Int      @unique
+  command    Command  @relation(fields: [commandId], references: [id], onDelete: Cascade)
+  summary    String   @default("")        // строка из NAME / первая строка --help
+  manPath    String   @default("")        // "" если нет man-страницы
+  manSection String   @default("")
+  source     String                      // man | help | none
+  helpFlag   String   @default("")        // "--help" | "-h" | "help" | ""
+}
+
+model Package {
+  id           Int     @id @default(autoincrement())
+  type         String                    // deb | flatpak | appimage
+  name         String                    // "git" | "org.mozilla.firefox"
+  version      String   @default("")
+  architecture String   @default("")
+  status       String   @default("")     // dpkg Status
+  maintainer   String   @default("")
+  description  String   @default("")
+  section      String   @default("")     // dpkg Section / flatpak runtime
+  origin       String   @default("")     // flatpak origin / каталог AppImage
+  installPath  String   @default("")     // путь AppImage / flatpak deploy
+  meta         String   @default("{}")   // json: остальные поля
+  commands     Command[]
+  desktopEntries DesktopEntry[]
+  processes    Process[]
+
+  @@unique([type, name])
+}
+
+model DesktopEntry {
+  id          Int      @id @default(autoincrement())
+  filePath    String   @unique
+  name        String
+  genericName String   @default("")
+  comment     String   @default("")
+  exec        String   @default("")
+  tryExec     String   @default("")
+  iconName    String   @default("")      // сырое значение Icon=
+  iconPath    String   @default("")      // скопированная иконка в /var/lib/lps/icons
+  categories  String   @default("")      // "Network;WebBrowser;"
+  mimeTypes   String   @default("")
+  terminal    Boolean  @default(false)
+  noDisplay   Boolean  @default(false)
+  hidden      Boolean  @default(false)
+  wmClass     String   @default("")
+  meta        String   @default("{}")    // json: локали и прочее
+  packageId   Int?
+  package     Package? @relation(fields: [packageId], references: [id])
+  commandId   Int?
+  command     Command? @relation(fields: [commandId], references: [id])
+
+  @@index([name])
+}
+
+model Process {
+  id        Int       @id @default(autoincrement())
+  pid       Int
+  startedAt DateTime                    // btime + starttime/CLK_TCK
+  ppid      Int?
+  uid       Int?
+  user      String   @default("")
+  cmdline   String   @default("")
+  exePath   String   @default("")
+  isKernel  Boolean   @default(false)
+  commandId Int?
+  command   Command?  @relation(fields: [commandId], references: [id])
+  packageId Int?
+  package   Package?  @relation(fields: [packageId], references: [id])
+  snapshots ProcessSnapshot[]
+
+  @@unique([pid, startedAt])
+  @@index([commandId])
+}
+
+model ProcessSnapshot {
+  id         Int       @id @default(autoincrement())
+  scanRunId  Int
+  scanRun    ScanRun   @relation(fields: [scanRunId], references: [id], onDelete: Cascade)
+  processId  Int
+  process    Process   @relation(fields: [processId], references: [id], onDelete: Cascade)
+  observedAt DateTime  @default(now())
+  uptimeSec  Int       @default(0)
+  cpuPercent Float?
+  rssKb      Int?
+  state      String   @default("")
+  threads    Int?
+
+  @@index([processId, observedAt])
+  @@index([scanRunId])
+}
+
+model Meta {
+  key   String @id
+  value String
+}
