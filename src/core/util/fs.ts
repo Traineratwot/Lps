@@ -26,7 +26,10 @@ export function statEntry(path: string): EntryInfo | null {
   try {
     const st = lstatSync(path);
     const isSymlink = st.isSymbolicLink();
-    let realPath = path;
+    // realPath is always canonical: with usrmerge /bin/git is a regular file
+    // (not a symlink), yet its canonical location is /usr/bin/git — dpkg
+    // lists the canonical path, so linking needs it.
+    const realPath = realPathOr(path);
     let size = st.size;
     let mode = st.mode;
     let ownerId = st.uid;
@@ -34,7 +37,6 @@ export function statEntry(path: string): EntryInfo | null {
     if (isSymlink) {
       try {
         const target = statSync(path); // follows the link
-        realPath = realpathSync(path);
         size = target.size;
         mode = target.mode;
         ownerId = target.uid;

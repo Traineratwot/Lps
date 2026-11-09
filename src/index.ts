@@ -3,6 +3,7 @@ import { flagBool, flagList, flagString, parseArgs } from "./cli/args.ts";
 import { printCommandHelp, printGlobalHelp, printVersion } from "./cli/help.ts";
 import { runDoctor, runInit } from "./cli/commands/system.ts";
 import { runScan } from "./cli/commands/scan.ts";
+import { runExport, runList, runLogs, runShow } from "./cli/commands/query.ts";
 import { red, yellow } from "./cli/ui/style.ts";
 import { resolveConfig } from "./core/config.ts";
 
@@ -54,6 +55,18 @@ async function main(): Promise<void> {
     case "scan":
       await runScan(config, { only: flagList(flags, "only") });
       break;
+    case "list":
+      await runList(config, positionals[0], flags);
+      break;
+    case "show":
+      await runShow(config, positionals[0], flags);
+      break;
+    case "logs":
+      await runLogs(config, positionals[0], flags);
+      break;
+    case "export":
+      await runExport(config, flags);
+      break;
     case "db": {
       const sub = positionals[0];
       if (sub === "path" || sub === undefined) {
@@ -64,13 +77,6 @@ async function main(): Promise<void> {
       }
       break;
     }
-    case "list":
-    case "show":
-    case "logs":
-    case "export":
-      console.error(red(`lps ${command} is not implemented yet (planned for a later stage).`));
-      process.exitCode = 1;
-      break;
   }
 }
 
