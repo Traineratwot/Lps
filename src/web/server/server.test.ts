@@ -32,10 +32,13 @@ beforeAll(async () => {
   });
   const cmd = await db.command.create({
     data: {
+      hash: "hash-htop",
       name: "htop",
       kind: "exec",
-      path: "/usr/bin/htop",
       realPath: "/usr/bin/htop",
+      paths: JSON.stringify(["/usr/bin/htop"]),
+      names: JSON.stringify(["htop"]),
+      aliases: "[]",
       source: "path",
       packageId: pkg.id,
     },

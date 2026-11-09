@@ -34,5 +34,8 @@ export function scanBuiltins(): RawCommand[] {
     size: null,
     mode: null,
     ownerId: null,
+    dev: null,
+    ino: null,
+    mtimeMs: null,
   }));
 }

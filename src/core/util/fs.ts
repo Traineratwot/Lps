@@ -10,6 +10,10 @@ export type EntryInfo = {
   mode: number;
   ownerId: number;
   isDir: boolean;
+  /** Device id and inode — identify the file without reading it. */
+  dev: number;
+  ino: number;
+  mtimeMs: number;
 };
 
 /** Lists immediate children of a directory; missing dir → empty array. */
@@ -34,6 +38,9 @@ export function statEntry(path: string): EntryInfo | null {
     let mode = st.mode;
     let ownerId = st.uid;
     let isDir = st.isDirectory();
+    let dev = Number(st.dev);
+    let ino = Number(st.ino);
+    let mtimeMs = Math.round(st.mtimeMs);
     if (isSymlink) {
       try {
         const target = statSync(path); // follows the link
@@ -41,6 +48,10 @@ export function statEntry(path: string): EntryInfo | null {
         mode = target.mode;
         ownerId = target.uid;
         isDir = target.isDirectory();
+        // identity of the *content* lives on the link target
+        dev = Number(target.dev);
+        ino = Number(target.ino);
+        mtimeMs = Math.round(target.mtimeMs);
       } catch {
         return null; // broken symlink
       }
@@ -54,6 +65,9 @@ export function statEntry(path: string): EntryInfo | null {
       mode,
       ownerId,
       isDir,
+      dev,
+      ino,
+      mtimeMs,
     };
   } catch {
     return null;

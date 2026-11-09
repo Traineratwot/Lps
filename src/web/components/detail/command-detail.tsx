@@ -24,7 +24,7 @@ function DocViewer({ command }: { command: CommandDetail }): React.ReactElement 
   };
 
   const hasMan = Boolean(command.doc?.manPath);
-  const hasHelp = command.kind !== "alias" || Boolean(command.aliasOf);
+  const hasHelp = command.kind !== "alias" || command.aliases.length > 0;
 
   return (
     <div className="detail-section">
@@ -118,14 +118,33 @@ export function CommandDetailPage({ id }: { id: number }): React.ReactElement {
       <div className="detail-section">
         <h3>Расположение</h3>
         <dl className="kv">
-          <dt>Путь</dt>
-          <dd>{data.path || "—"}</dd>
-          <dt>Реальный путь</dt>
-          <dd>{data.realPath || "—"}</dd>
-          {data.aliasOf && (
+          <dt>Пути</dt>
+          <dd>
+            {data.paths.length > 0 ? (
+              data.paths.map((p) => (
+                <div key={p}>
+                  {p}
+                  {p === data.realPath && <span style={{ color: "var(--text-color-secondary)" }}> (real)</span>}
+                </div>
+              ))
+            ) : (
+              "—"
+            )}
+          </dd>
+          {data.names.filter((n) => n !== data.name).length > 0 && (
             <>
-              <dt>Раскрытие алиаса</dt>
-              <dd>{data.aliasOf}</dd>
+              <dt>Имена</dt>
+              <dd>{data.names.filter((n) => n !== data.name).join(", ")}</dd>
+            </>
+          )}
+          {data.aliases.length > 0 && (
+            <>
+              <dt>Алиасы</dt>
+              <dd>
+                {data.aliases.map((a) => (
+                  <div key={a}>{a}</div>
+                ))}
+              </dd>
             </>
           )}
           {data.doc?.manPath && (

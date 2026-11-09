@@ -57,10 +57,11 @@ export type ProgramDetail = ProgramCard & {
   commandsFull: {
     id: number;
     name: string;
+    names: string[];
     kind: string;
-    path: string;
+    paths: string[];
     realPath: string;
-    aliasOf: string;
+    aliases: string[];
     source: string;
     summary: string;
     manPath: string;
@@ -73,15 +74,18 @@ export type CommandRow = {
   id: number;
   name: string;
   kind: string;
+  /** Primary path (realPath or first recorded path). */
   path: string;
-  realPath: string;
+  paths: string[];
+  aliases: string[];
   summary: string;
   packageName: string | null;
   processCount: number;
 };
 
 export type CommandDetail = CommandRow & {
-  aliasOf: string;
+  names: string[];
+  realPath: string;
   source: string;
   doc: {
     summary: string;

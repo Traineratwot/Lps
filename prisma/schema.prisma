@@ -21,16 +21,23 @@ model ScanRun {
 
 model Command {
   id        Int           @id @default(autoincrement())
-  name      String                          // "git", "ll", "cd"
+  // sha256 of file content — one row per unique binary; synthetic sha256
+  // for aliases/builtins ("alias:<name>" / "builtin:<name>")
+  hash      String        @unique
+  name      String                          // primary name (basename of realPath)
+  names     String        @default("[]")    // JSON array: all names seen
+  paths     String        @default("[]")    // JSON array: realPath first
+  aliases   String        @default("[]")    // JSON array: "name=expansion"
   kind      String                          // exec | alias | builtin | alternative
-  path      String       @default("")       // "" для builtin/alias
-  realPath  String       @default("")       // realpath файла; "" если нет
-  aliasOf   String       @default("")       // раскрытие алиаса
   source    String                          // path | alias | builtin | alternatives | flatpak-export | snap
+  realPath  String        @default("")
   isSymlink Boolean       @default(false)
   size      Int?
   mode      Int?
-  ownerId   Int?                            // uid владельца файла
+  ownerId   Int?
+  dev       Int?
+  inode     Int?
+  mtimeMs   Int?
   packageId Int?
   package   Package?      @relation(fields: [packageId], references: [id])
   doc       CommandDoc?
@@ -39,7 +46,6 @@ model Command {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  @@unique([name, path, kind])
   @@index([name])
   @@index([realPath])
 }

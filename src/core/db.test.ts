@@ -88,33 +88,51 @@ describe("schema + PrismaClient integration", () => {
 
   test("command upsert with compound unique key", async () => {
     const create = {
+      hash: "hash-git",
       name: "git",
       kind: "exec",
-      path: "/usr/bin/git",
       realPath: "/usr/bin/git",
+      paths: JSON.stringify(["/usr/bin/git", "/bin/git"]),
+      names: JSON.stringify(["git"]),
+      aliases: "[]",
       source: "path",
     };
     await db.command.upsert({
-      where: { name_path_kind: { name: "git", path: "/usr/bin/git", kind: "exec" } },
+      where: { hash: "hash-git" },
       create,
       update: { realPath: "/usr/bin/git" },
     });
     await db.command.upsert({
-      where: { name_path_kind: { name: "git", path: "/usr/bin/git", kind: "exec" } },
+      where: { hash: "hash-git" },
       create,
       update: { realPath: "/usr/bin/git-x" },
     });
     const rows = await db.command.findMany({ where: { name: "git" } });
     expect(rows.length).toBe(1);
     expect(rows[0]!.realPath).toBe("/usr/bin/git-x");
+    expect(JSON.parse(rows[0]!.paths)).toEqual(["/usr/bin/git", "/bin/git"]);
   });
 
-  test("alias and builtin with same name coexist (P4 regression)", async () => {
+  test("identity is content hash: distinct hashes coexist, same hash collapses", async () => {
     await db.command.create({
-      data: { name: "cd", kind: "builtin", source: "builtin" },
+      data: {
+        hash: "hash-builtin-cd",
+        name: "cd",
+        kind: "builtin",
+        source: "builtin",
+        names: JSON.stringify(["cd"]),
+      },
     });
     await db.command.create({
-      data: { name: "cd", kind: "alias", source: "alias", aliasOf: "cd -" },
+      data: {
+        hash: "hash-file-cd",
+        name: "cd",
+        kind: "exec",
+        source: "path",
+        realPath: "/usr/bin/cd",
+        paths: JSON.stringify(["/usr/bin/cd"]),
+        names: JSON.stringify(["cd"]),
+      },
     });
     const rows = await db.command.findMany({ where: { name: "cd" } });
     expect(rows.length).toBe(2);

@@ -16,6 +16,7 @@ import {
   getProgram,
   getPrograms,
   isInsideDir,
+  jsonList,
   PROC_INCLUDE,
   processRowOf,
   safeIconUrl,
@@ -138,6 +139,18 @@ async function getStats(db: Db): Promise<StatsResp> {
   };
 }
 
+/** Primary executable path of a command row. */
+function primaryPath(cmd: { realPath: string; paths: string }): string {
+  return cmd.realPath || jsonList(cmd.paths)[0] || "";
+}
+
+/** First alias expansion ("name=value" → value). */
+function firstAlias(aliasesJson: string): string {
+  const first = jsonList(aliasesJson)[0] ?? "";
+  const eq = first.indexOf("=");
+  return eq >= 0 ? first.slice(eq + 1) : first;
+}
+
 async function commandDocText(db: Db, id: number, kind: string): Promise<DocText | null> {
   const cmd = await db.command.findUnique({
     where: { id },
@@ -145,7 +158,7 @@ async function commandDocText(db: Db, id: number, kind: string): Promise<DocText
   });
   if (!cmd) return null;
   if (kind === "help") {
-    return renderHelpPage(cmd.name, cmd.path, cmd.kind, cmd.aliasOf);
+    return renderHelpPage(cmd.name, primaryPath(cmd), cmd.kind, firstAlias(cmd.aliases));
   }
   return renderManPage(cmd.name, cmd.doc?.manPath ?? "");
 }
@@ -153,7 +166,16 @@ async function commandDocText(db: Db, id: number, kind: string): Promise<DocText
 async function listCommands(db: Db, query: Record<string, string>): Promise<ListResp<CommandRow>> {
   const { page, pageSize } = paging(query);
   const where = {
-    ...(query.q ? { name: { contains: query.q } } : {}),
+    ...(query.q
+      ? {
+          OR: [
+            { name: { contains: query.q } },
+            { names: { contains: query.q } },
+            { paths: { contains: query.q } },
+            { aliases: { contains: query.q } },
+          ],
+        }
+      : {}),
     ...(query.kind ? { kind: query.kind } : {}),
     ...(bool(query, "orphan") ? { packageId: null } : {}),
   };
@@ -172,8 +194,9 @@ async function listCommands(db: Db, query: Record<string, string>): Promise<List
       id: r.id,
       name: r.name,
       kind: r.kind,
-      path: r.path,
-      realPath: r.realPath,
+      path: r.realPath || jsonList(r.paths)[0] || "",
+      paths: jsonList(r.paths),
+      aliases: jsonList(r.aliases),
       summary: r.doc?.summary ?? "",
       packageName: r.package?.name ?? null,
       processCount: r._count.processes,
@@ -199,9 +222,11 @@ async function commandDetail(db: Db, id: number): Promise<CommandDetail | null> 
     id: r.id,
     name: r.name,
     kind: r.kind,
-    path: r.path,
+    path: r.realPath || jsonList(r.paths)[0] || "",
+    paths: jsonList(r.paths),
+    aliases: jsonList(r.aliases),
+    names: jsonList(r.names),
     realPath: r.realPath,
-    aliasOf: r.aliasOf,
     source: r.source,
     summary: r.doc?.summary ?? "",
     packageName: r.package?.name ?? null,

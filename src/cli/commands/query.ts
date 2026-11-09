@@ -51,7 +51,16 @@ async function listCommands(db: Db, flags: Flags): Promise<void> {
   const search = flagString(flags, "search");
   const rows = await db.command.findMany({
     where: {
-      ...(search ? { name: { contains: search } } : {}),
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search } },
+              { names: { contains: search } },
+              { paths: { contains: search } },
+              { aliases: { contains: search } },
+            ],
+          }
+        : {}),
       ...(flags.orphan ? { packageId: null } : {}),
     },
     include: { doc: true, package: true },
@@ -63,12 +72,22 @@ async function listCommands(db: Db, flags: Flags): Promise<void> {
     rows.map((r) => [
       r.name,
       r.kind,
-      r.path || "-",
+      r.realPath || jsonList(r.paths)[0] || "-",
       (r.doc?.summary ?? "").slice(0, 50),
       r.package ? `${r.package.name} (${r.package.type})` : "-",
     ]),
   ));
   console.log(dim(`showing ${rows.length} rows`));
+}
+
+/** Parses a JSON string[] column; tolerates empty/legacy values. */
+function jsonList(json: string): string[] {
+  try {
+    const list = JSON.parse(json);
+    return Array.isArray(list) ? (list as string[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 async function listPackages(db: Db, flags: Flags): Promise<void> {
@@ -165,9 +184,9 @@ export async function runShow(config: LpsConfig, target: string | undefined, _fl
 
 async function showCommand(db: Db, name: string): Promise<void> {
   const rows = await db.command.findMany({
-    where: { name },
+    where: { OR: [{ name: { contains: name } }, { names: { contains: name } }, { aliases: { contains: name } }] },
     include: { doc: true, package: true, desktopEntries: true },
-    orderBy: [{ kind: "asc" }, { path: "asc" }],
+    orderBy: [{ kind: "asc" }, { realPath: "asc" }],
   });
   if (rows.length === 0) {
     console.error(red(`command not found: ${name}`));
@@ -176,9 +195,13 @@ async function showCommand(db: Db, name: string): Promise<void> {
   }
   for (const cmd of rows) {
     console.log(`${bold(cmd.name)} ${dim(`(${cmd.kind})`)}`);
-    if (cmd.path) console.log(`  ${dim("path:")}      ${cmd.path}`);
-    if (cmd.realPath && cmd.realPath !== cmd.path) console.log(`  ${dim("realPath:")}  ${cmd.realPath}`);
-    if (cmd.aliasOf) console.log(`  ${dim("aliasOf:")}   ${cmd.aliasOf}`);
+    const paths = jsonList(cmd.paths);
+    for (const p of paths) {
+      console.log(`  ${dim("path:")}      ${p}${p === cmd.realPath ? dim("  (real)") : ""}`);
+    }
+    const names = jsonList(cmd.names).filter((n) => n !== cmd.name);
+    if (names.length > 0) console.log(`  ${dim("names:")}     ${names.join(", ")}`);
+    for (const a of jsonList(cmd.aliases)) console.log(`  ${dim("alias:")}     ${a}`);
     if (cmd.doc?.summary) console.log(`  ${dim("summary:")}   ${cmd.doc.summary}`);
     if (cmd.doc?.manPath) console.log(`  ${dim("man:")}       ${cmd.doc.manPath} (section ${cmd.doc.manSection})`);
     if (cmd.doc?.source) console.log(`  ${dim("docSource:")} ${cmd.doc.source}${cmd.doc.helpFlag ? ` (${cmd.doc.helpFlag})` : ""}`);
@@ -252,7 +275,7 @@ async function showProcess(db: Db, pid: number): Promise<void> {
     console.log(`  ${dim("cmdline:")}  ${p.cmdline || "(kernel thread)"}`);
     if (p.exePath) console.log(`  ${dim("exe:")}      ${p.exePath}`);
     console.log(`  ${dim("user:")}     ${p.user || "?"} ${dim(`uid=${p.uid ?? "?"}`)}`);
-    if (p.command) console.log(`  ${dim("command:")}  ${p.command.name} ${dim(`(${p.command.path})`)}`);
+    if (p.command) console.log(`  ${dim("command:")}  ${p.command.name} ${dim(`(${p.command.realPath || "-"})`)}`);
     if (p.package) console.log(`  ${dim("package:")}  ${green(p.package.name)} ${dim(p.package.type)}`);
     console.log(`  ${dim("snapshots:")}`);
     for (const s of p.snapshots.slice(0, 10)) {
@@ -329,11 +352,11 @@ export async function runExport(config: LpsConfig, flags: Flags): Promise<void> 
     let text: string;
     if (format === "csv") {
       // commands-only CSV is the useful flat view
-      const header = ["name", "kind", "path", "realPath", "summary", "package"];
+      const header = ["name", "kind", "realPath", "paths", "names", "aliases", "summary", "package"];
       const lines = [header.join(",")];
       for (const c of data.commands) {
         lines.push([
-          c.name, c.kind, c.path, c.realPath,
+          c.name, c.kind, c.realPath, c.paths, c.names, c.aliases,
           JSON.stringify(c.doc?.summary ?? ""),
           c.packageId != null ? String(c.packageId) : "",
         ].join(","));

@@ -8,6 +8,8 @@ import { bold, dim, green, yellow } from "../ui/style.ts";
 import { scanPathCommands } from "../../modules/commands/path-scan.ts";
 import { scanAliases } from "../../modules/commands/aliases.ts";
 import { scanBuiltins } from "../../modules/commands/builtins.ts";
+import { mergeCommands, type HashFn, type MergedCommand } from "../../modules/commands/merge.ts";
+import { fileKey, hashFile, syntheticHash } from "../../core/util/hash.ts";
 import { detectDistro } from "../../modules/distro/detect.ts";
 import { getManSummary } from "../../modules/docs/man.ts";
 import { getHelpSummary, type HelpSummary } from "../../modules/docs/help.ts";
@@ -52,40 +54,78 @@ const EMPTY_STATS = (): StageStats => ({ found: 0, written: 0, linked: 0, skippe
 // Stage: commands
 // ---------------------------------------------------------------------------
 
-async function upsertCommands(ctx: ScanCtx, commands: RawCommand[]): Promise<StageStats> {
+/** Builds a hasher: sha256 of content, memoized per (dev,ino,size,mtime). */
+function makeCommandHasher(reuse: Map<string, string>): HashFn {
+  const cache = new Map<string, string>();
+  return (raw) => {
+    if (raw.kind === "alias") return syntheticHash("alias", raw.name);
+    if (raw.kind === "builtin" || !raw.path) return syntheticHash("builtin", raw.name);
+    const key =
+      raw.dev != null && raw.ino != null
+        ? fileKey(raw.dev, raw.ino, raw.size ?? 0, raw.mtimeMs ?? 0)
+        : null;
+    if (key) {
+      const hit = cache.get(key) ?? reuse.get(key);
+      if (hit) {
+        cache.set(key, hit);
+        return hit;
+      }
+    }
+    const hash = hashFile(raw.realPath || raw.path);
+    if (hash && key) cache.set(key, hash);
+    return hash;
+  };
+}
+
+async function upsertCommands(ctx: ScanCtx, commands: MergedCommand[]): Promise<StageStats> {
   const stats = EMPTY_STATS();
   stats.found = commands.length;
   const bar = new ProgressBar("commands", commands.length);
   try {
     for (const cmd of commands) {
+      const names = JSON.stringify(cmd.names);
+      const paths = JSON.stringify(cmd.paths);
+      const aliases = JSON.stringify(cmd.aliases);
       await ctx.db.command.upsert({
-        where: { name_path_kind: { name: cmd.name, path: cmd.path, kind: cmd.kind } },
+        where: { hash: cmd.hash },
         create: {
+          hash: cmd.hash,
           name: cmd.name,
+          names,
+          paths,
+          aliases,
           kind: cmd.kind,
-          path: cmd.path,
-          realPath: cmd.realPath,
-          aliasOf: cmd.aliasOf,
           source: cmd.source,
+          realPath: cmd.realPath,
           isSymlink: cmd.isSymlink,
           size: cmd.size,
           mode: cmd.mode,
           ownerId: cmd.ownerId,
+          dev: cmd.dev,
+          inode: cmd.inode,
+          mtimeMs: cmd.mtimeMs,
         },
         update: {
-          realPath: cmd.realPath,
-          aliasOf: cmd.aliasOf,
+          name: cmd.name,
+          names,
+          paths,
+          aliases,
+          kind: cmd.kind,
           source: cmd.source,
+          realPath: cmd.realPath,
           isSymlink: cmd.isSymlink,
           size: cmd.size,
           mode: cmd.mode,
           ownerId: cmd.ownerId,
+          dev: cmd.dev,
+          inode: cmd.inode,
+          mtimeMs: cmd.mtimeMs,
         },
       });
       stats.written++;
       bar.tick(cmd.name);
     }
-    bar.done(`${stats.written} commands`);
+    bar.done(`${stats.written} unique commands`);
   } catch (error) {
     stats.errors++;
     bar.fail(error instanceof Error ? error.message : String(error));
@@ -100,17 +140,46 @@ async function runCommandsStage(ctx: ScanCtx): Promise<StageStats> {
   collected.push(...scanBuiltins());
   const alternatives = await ctx.distro.listAlternatives?.();
   if (alternatives) collected.push(...alternatives);
-  return upsertCommands(ctx, collected);
+
+  // reuse hashes of unchanged files from the previous scan
+  const reuse = new Map<string, string>();
+  for (const row of await ctx.db.command.findMany({ select: { hash: true, dev: true, inode: true, size: true, mtimeMs: true } })) {
+    if (row.dev != null && row.inode != null && row.mtimeMs != null) {
+      reuse.set(fileKey(row.dev, row.inode, row.size ?? 0, row.mtimeMs), row.hash);
+    }
+  }
+
+  return upsertCommands(ctx, mergeCommands(collected, makeCommandHasher(reuse)));
 }
 
 // ---------------------------------------------------------------------------
 // Stage: docs (man NAME summary, --help fallback)
 // ---------------------------------------------------------------------------
 
+function firstAliasExpansion(aliasesJson: string): string {
+  try {
+    const list = JSON.parse(aliasesJson) as string[];
+    const first = list[0] ?? "";
+    const eq = first.indexOf("=");
+    return eq >= 0 ? first.slice(eq + 1) : first;
+  } catch {
+    return "";
+  }
+}
+
+function primaryPathOf(row: { realPath: string; paths: string }): string {
+  if (row.realPath) return row.realPath;
+  try {
+    return (JSON.parse(row.paths) as string[])[0] ?? "";
+  } catch {
+    return "";
+  }
+}
+
 async function runDocsStage(ctx: ScanCtx): Promise<StageStats> {
   const stats = EMPTY_STATS();
   const commands = await ctx.db.command.findMany({
-    select: { id: true, name: true, path: true, realPath: true, kind: true, aliasOf: true },
+    select: { id: true, name: true, realPath: true, paths: true, kind: true, aliases: true },
     orderBy: { name: "asc" },
   });
   stats.found = commands.length;
@@ -127,7 +196,7 @@ async function runDocsStage(ctx: ScanCtx): Promise<StageStats> {
       let helpFlag = "";
 
       if (cmd.kind === "alias") {
-        summary = cmd.aliasOf;
+        summary = firstAliasExpansion(cmd.aliases);
       } else {
         const man = getManSummary(cmd.name);
         if (man?.summary) {
@@ -136,10 +205,10 @@ async function runDocsStage(ctx: ScanCtx): Promise<StageStats> {
           manSection = man.section;
           source = "man";
         } else {
-          const cacheKey = cmd.realPath || cmd.path || cmd.name;
+          const cacheKey = cmd.realPath || cmd.name;
           let help = helpCache.get(cacheKey);
           if (help === undefined) {
-            help = getHelpSummary(cmd.name, cmd.path, cmd.kind as RawCommand["kind"]);
+            help = getHelpSummary(cmd.name, primaryPathOf(cmd), cmd.kind as RawCommand["kind"]);
             helpCache.set(cacheKey, help);
           }
           if (help) {
@@ -254,12 +323,12 @@ async function linkCommandsToPackages(
   linkIndex: Map<string, string>,
 ): Promise<number> {
   const commands = await ctx.db.command.findMany({
-    select: { id: true, path: true, realPath: true, packageId: true },
+    select: { id: true, paths: true, realPath: true, packageId: true },
   });
   const bar = new ProgressBar("link cmd→pkg", commands.length);
   let linked = 0;
   for (const cmd of commands) {
-    const ref = linkIndex.get(cmd.realPath) ?? (cmd.path ? linkIndex.get(cmd.path) : undefined);
+    const ref = lookupLink(linkIndex, cmd.realPath, cmd.paths);
     const pkgId = ref ? ids.get(ref) : undefined;
     if (pkgId && pkgId !== cmd.packageId) {
       await ctx.db.command.update({ where: { id: cmd.id }, data: { packageId: pkgId } });
@@ -269,6 +338,35 @@ async function linkCommandsToPackages(
   }
   bar.done(`${linked} linked`);
   return linked;
+}
+
+/** Parses a JSON string[] column; tolerates empty/legacy values. */
+function jsonList(json: string): string[] {
+  try {
+    const list = JSON.parse(json);
+    return Array.isArray(list) ? (list as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** First hit in the link index among realPath and every recorded path. */
+function lookupLink(linkIndex: Map<string, string>, realPath: string, pathsJson: string): string | undefined {
+  if (realPath) {
+    const hit = linkIndex.get(realPath);
+    if (hit) return hit;
+  }
+  let paths: string[] = [];
+  try {
+    paths = JSON.parse(pathsJson) as string[];
+  } catch {
+    // empty/legacy value
+  }
+  for (const p of paths) {
+    const hit = linkIndex.get(p);
+    if (hit) return hit;
+  }
+  return undefined;
 }
 
 async function runPackagesStage(ctx: ScanCtx): Promise<StageStats> {
@@ -284,17 +382,27 @@ async function upsertAppImageCommands(ctx: ScanCtx, packages: RawPackage[]): Pro
   for (const pkg of packages) {
     if (pkg.type !== "appimage" || !pkg.installPath) continue;
     const name = pkg.installPath.split("/").pop() ?? pkg.name;
+    const hash = hashFile(pkg.installPath) ?? syntheticHash("appimage", pkg.installPath);
     await ctx.db.command.upsert({
-      where: { name_path_kind: { name, path: pkg.installPath, kind: "exec" } },
+      where: { hash },
       create: {
+        hash,
         name,
+        names: JSON.stringify([name]),
+        paths: JSON.stringify([pkg.installPath]),
+        aliases: "[]",
         kind: "exec",
-        path: pkg.installPath,
-        realPath: pkg.installPath,
         source: "appimage",
+        realPath: pkg.installPath,
         isSymlink: false,
       },
-      update: { realPath: pkg.installPath, source: "appimage" },
+      update: {
+        name,
+        names: JSON.stringify([name]),
+        paths: JSON.stringify([pkg.installPath]),
+        source: "appimage",
+        realPath: pkg.installPath,
+      },
     });
   }
 }
@@ -313,15 +421,17 @@ async function runDesktopStage(ctx: ScanCtx): Promise<StageStats> {
   const pkgIds = new Map(pkgRows.map((p) => [`${p.type}:${p.name}`, p.id]));
 
   const commands = await ctx.db.command.findMany({
-    select: { id: true, name: true, path: true, kind: true, packageId: true },
+    select: { id: true, name: true, names: true, paths: true, kind: true, packageId: true },
   });
   const byPath = new Map<string, number>();
   const byName = new Map<string, { id: number; packageId: number | null }>();
   for (const cmd of commands) {
-    if (cmd.path) byPath.set(cmd.path, cmd.id);
-    const existing = byName.get(cmd.name);
-    if (!existing || (cmd.packageId && !existing.packageId)) {
-      byName.set(cmd.name, { id: cmd.id, packageId: cmd.packageId });
+    for (const p of jsonList(cmd.paths)) byPath.set(p, cmd.id);
+    for (const n of [cmd.name, ...jsonList(cmd.names)]) {
+      const existing = byName.get(n);
+      if (!existing || (cmd.packageId && !existing.packageId)) {
+        byName.set(n, { id: cmd.id, packageId: cmd.packageId });
+      }
     }
   }
 
@@ -417,15 +527,17 @@ async function runProcessesStage(ctx: ScanCtx): Promise<StageStats> {
   const pkgIds = new Map(pkgRows.map((p) => [`${p.type}:${p.name}`, p.id]));
 
   const commands = await ctx.db.command.findMany({
-    select: { id: true, name: true, path: true, realPath: true, kind: true, packageId: true },
+    select: { id: true, name: true, names: true, paths: true, realPath: true, kind: true, packageId: true },
   });
   const byRealPath = new Map<string, number>();
   const byPath = new Map<string, number>();
   const byName = new Map<string, number>();
   for (const cmd of commands) {
     if (cmd.realPath && !byRealPath.has(cmd.realPath)) byRealPath.set(cmd.realPath, cmd.id);
-    if (cmd.path && !byPath.has(cmd.path)) byPath.set(cmd.path, cmd.id);
-    if (cmd.kind === "exec" && !byName.has(cmd.name)) byName.set(cmd.name, cmd.id);
+    for (const p of jsonList(cmd.paths)) if (!byPath.has(p)) byPath.set(p, cmd.id);
+    if (cmd.kind === "exec") {
+      for (const n of [cmd.name, ...jsonList(cmd.names)]) if (!byName.has(n)) byName.set(n, cmd.id);
+    }
   }
 
   const userByUid = new Map(listUsers().map((u) => [u.uid, u.name]));

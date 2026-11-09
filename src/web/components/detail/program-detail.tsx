@@ -118,7 +118,7 @@ export function ProgramDetailPage({ id }: { id: string }): React.ReactElement {
                 >
                   <td style={{ padding: "0.35rem 0.5rem" }}>{c.name}</td>
                   <td style={{ padding: "0.35rem 0.5rem" }}>{c.kind}</td>
-                  <td style={{ padding: "0.35rem 0.5rem", color: "var(--text-color-secondary)" }}>{c.path || "—"}</td>
+                  <td style={{ padding: "0.35rem 0.5rem", color: "var(--text-color-secondary)" }}>{c.paths[0] || "—"}</td>
                   <td style={{ padding: "0.35rem 0.5rem", color: "var(--text-color-secondary)" }}>{c.summary}</td>
                 </tr>
               ))}

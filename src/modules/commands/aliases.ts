@@ -27,6 +27,9 @@ export function parseAliases(content: string, source: string): RawCommand[] {
       size: null,
       mode: null,
       ownerId: null,
+      dev: null,
+      ino: null,
+      mtimeMs: null,
     });
   }
   return result;

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import type { RawCommand } from "../../../core/types.ts";
 import { runCommand } from "../../../core/util/exec.ts";
-import { listDir, readLinkOrNull, realPathOr } from "../../../core/util/fs.ts";
+import { listDir, readLinkOrNull, realPathOr, statEntry } from "../../../core/util/fs.ts";
 
 /**
  * Debian alternatives: virtual names (editor, x-www-browser, ...) mapped to
@@ -16,17 +16,21 @@ export function scanAlternatives(): RawCommand[] {
     if (/\.\d+\.gz$/.test(name) || name.endsWith(".gz")) return;
     if (seen.has(name)) return;
     seen.add(name);
+    const info = statEntry(path);
     result.push({
       name,
       kind: "alternative",
       path,
-      realPath: realPathOr(path),
+      realPath: info?.realPath ?? realPathOr(path),
       aliasOf: "",
       source: "alternatives",
       isSymlink: true,
-      size: null,
-      mode: null,
-      ownerId: null,
+      size: info?.size ?? null,
+      mode: info?.mode ?? null,
+      ownerId: info?.ownerId ?? null,
+      dev: info?.dev ?? null,
+      ino: info?.ino ?? null,
+      mtimeMs: info?.mtimeMs ?? null,
     });
   };
 

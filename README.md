@@ -9,7 +9,7 @@ CLI-утилита, которая собирает в SQLite полный ин�
 
 | Сущность | Что индексируется | Источники |
 |---|---|---|
-| Команды | имя, путь, realPath, алиасы, builtins, alternatives | `$PATH`, shell-rc, `compgen -b`, `/etc/alternatives` |
+| Команды | имя, пути, realPath, алиасы, builtins, alternatives | `$PATH`, shell-rc, `compgen -b`, `/etc/alternatives` |
 | Документация | summary + путь к man-странице | секция NAME man-страниц, fallback `--help` |
 | Пакеты | имя, версия, описание, связи | `dpkg` (status + info/\*.list), `flatpak`, AppImage |
 | Ярлыки | .desktop + извлечённые иконки | XDG-каталоги, темы иконок, flatpak exports |
@@ -17,6 +17,10 @@ CLI-утилита, которая собирает в SQLite полный ин�
 
 Связи: `Command → Package`, `DesktopEntry → Package/Command`,
 `Process → Command/Package`, история `ProcessSnapshot` по каждому скану.
+
+**Идентичность команды — sha256 содержимого файла**: один бинарь в разных
+путях (`/bin/curl` и `/usr/bin/curl`) даёт одну запись с массивами `paths`,
+`names` и `aliases` (см. PROBLEMS.md P12).
 
 ## Требования
 

@@ -17,6 +17,10 @@ export type RawCommand = {
   size: number | null;
   mode: number | null;
   ownerId: number | null;
+  /** File identity on disk (dev/ino of the content), null for alias/builtin. */
+  dev: number | null;
+  ino: number | null;
+  mtimeMs: number | null;
 };
 
 export type StageStats = {

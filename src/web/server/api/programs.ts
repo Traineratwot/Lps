@@ -179,6 +179,44 @@ function chipOf(cmd: {
   return { id: cmd.id, name: cmd.name, kind: cmd.kind, summary: cmd.doc?.summary ?? "" };
 }
 
+/** Parses a JSON string[] column; tolerates empty/legacy values. */
+export function jsonList(json: string): string[] {
+  try {
+    const list = JSON.parse(json);
+    return Array.isArray(list) ? (list as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+type CommandFullRow = {
+  id: number;
+  name: string;
+  names: string;
+  kind: string;
+  paths: string;
+  realPath: string;
+  aliases: string;
+  source: string;
+  doc: { summary: string; manPath: string; manSection: string } | null;
+};
+
+function commandFullOf(c: CommandFullRow): ProgramDetail["commandsFull"][number] {
+  return {
+    id: c.id,
+    name: c.name,
+    names: jsonList(c.names),
+    kind: c.kind,
+    paths: jsonList(c.paths),
+    realPath: c.realPath,
+    aliases: jsonList(c.aliases),
+    source: c.source,
+    summary: c.doc?.summary ?? "",
+    manPath: c.doc?.manPath ?? "",
+    manSection: c.doc?.manSection ?? "",
+  };
+}
+
 export async function loadProgramCards(db: Db, iconsRoot: string): Promise<ProgramCard[]> {
   const desktops = await db.desktopEntry.findMany({
     include: {
@@ -371,18 +409,7 @@ export async function getProgram(db: Db, id: string, iconsRoot: string): Promise
             meta: safeJson(d.package.meta),
           }
         : null,
-      commandsFull: commandsFull.map((c) => ({
-        id: c.id,
-        name: c.name,
-        kind: c.kind,
-        path: c.path,
-        realPath: c.realPath,
-        aliasOf: c.aliasOf,
-        source: c.source,
-        summary: c.doc?.summary ?? "",
-        manPath: c.doc?.manPath ?? "",
-        manSection: c.doc?.manSection ?? "",
-      })),
+      commandsFull: commandsFull.map(commandFullOf),
       processes: processes.map(processRowOf),
     };
   }
@@ -428,18 +455,7 @@ export async function getProgram(db: Db, id: string, iconsRoot: string): Promise
       installPath: p.installPath,
       meta: safeJson(p.meta),
     },
-    commandsFull: commandsFull.map((c) => ({
-      id: c.id,
-      name: c.name,
-      kind: c.kind,
-      path: c.path,
-      realPath: c.realPath,
-      aliasOf: c.aliasOf,
-      source: c.source,
-      summary: c.doc?.summary ?? "",
-      manPath: c.doc?.manPath ?? "",
-      manSection: c.doc?.manSection ?? "",
-    })),
+    commandsFull: commandsFull.map(commandFullOf),
     processes: processes.map(processRowOf),
   };
 }

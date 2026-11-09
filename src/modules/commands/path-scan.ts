@@ -53,6 +53,9 @@ export function scanPathCommands(): RawCommand[] {
         size: info.size,
         mode: info.mode,
         ownerId: info.ownerId,
+        dev: info.dev,
+        ino: info.ino,
+        mtimeMs: info.mtimeMs,
       });
     }
   }
