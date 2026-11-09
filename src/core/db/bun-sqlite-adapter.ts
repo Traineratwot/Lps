@@ -403,10 +403,22 @@ export type BunSqliteAdapterConfig = {
 
 function openDatabase(config: BunSqliteAdapterConfig): Database {
   const path = config.url.replace(/^file:/, "");
-  return new Database(path, {
+  const db = new Database(path, {
     create: config.create ?? true,
     readonly: config.readonly ?? false,
   });
+  // SQLite does not enforce FKs unless asked — ON DELETE CASCADE and
+  // relation integrity depend on this (caught by db.test.ts).
+  db.exec("PRAGMA foreign_keys = ON");
+  db.exec("PRAGMA busy_timeout = 5000");
+  if (!config.readonly) {
+    try {
+      db.exec("PRAGMA journal_mode = WAL");
+    } catch {
+      // in-memory databases cannot use WAL
+    }
+  }
+  return db;
 }
 
 export class BunSqliteAdapterFactory implements SqlMigrationAwareDriverAdapterFactory {

@@ -9,11 +9,9 @@ export type OsRelease = {
   version: string;
 };
 
-export function readOsRelease(): OsRelease {
-  const path = "/etc/os-release";
+/** Parses /etc/os-release body (both KEY=value and KEY="value" forms). */
+export function parseOsRelease(content: string): OsRelease {
   const out: OsRelease = { id: "", idLike: [], name: "", version: "" };
-  if (!existsSync(path)) return out;
-  const content = readFileSync(path, "utf8");
   const get = (key: string): string => {
     const m = content.match(new RegExp(`^${key}=(?:"([^"]*)"|([^\\n]*))`, "m"));
     return m ? (m[1] ?? m[2] ?? "").trim() : "";
@@ -23,6 +21,12 @@ export function readOsRelease(): OsRelease {
   out.name = get("NAME");
   out.version = get("VERSION_ID");
   return out;
+}
+
+export function readOsRelease(): OsRelease {
+  const path = "/etc/os-release";
+  if (!existsSync(path)) return { id: "", idLike: [], name: "", version: "" };
+  return parseOsRelease(readFileSync(path, "utf8"));
 }
 
 const MODULES: DistroModule[] = [debianModule];

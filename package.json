@@ -8,11 +8,20 @@
   },
   "scripts": {
     "dev": "bun run src/index.ts",
+    "start": "bun run src/index.ts",
     "generate": "prisma generate",
     "migrate": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
     "schema:sync": "bun run scripts/gen-schema-sql.ts",
     "build": "prisma generate && bun build ./src/index.ts --compile --outfile dist/lps",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:smoke": "bun test src/core/db.test.ts",
+    "verify": "tsc --noEmit && bun test",
+    "doctor": "bun run src/index.ts doctor",
+    "scan": "bun run src/index.ts scan",
+    "clean": "rm -rf dist dev.db dev.db-wal dev.db-shm"
   },
   "devDependencies": {
     "@prisma/driver-adapter-utils": "7",

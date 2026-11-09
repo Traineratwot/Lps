@@ -23,6 +23,7 @@ export function createDb(dbPath: string): PrismaClient {
 export async function ensureSchema(dbPath: string): Promise<void> {
   const raw = new Database(dbPath, { create: true });
   try {
+    raw.exec("PRAGMA foreign_keys = ON");
     raw.exec(`CREATE TABLE IF NOT EXISTS "Meta" ("key" TEXT NOT NULL PRIMARY KEY, "value" TEXT NOT NULL)`);
     const row = raw
       .query(`SELECT "value" FROM "Meta" WHERE "key" = 'applied_migrations'`)

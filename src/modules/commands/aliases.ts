@@ -6,7 +6,7 @@ import { listUsers } from "../../core/util/users.ts";
 const ALIAS_RE = /^\s*alias\s+([A-Za-z0-9_.:-]+)=(['"])(.*?)\2\s*$/;
 const ALIAS_UNQUOTED_RE = /^\s*alias\s+([A-Za-z0-9_.:-]+)=(\S+)\s*$/;
 
-function parseAliases(content: string, source: string): RawCommand[] {
+export function parseAliases(content: string, source: string): RawCommand[] {
   const result: RawCommand[] = [];
   for (const line of content.split(/\r?\n/)) {
     const quoted = line.match(ALIAS_RE);

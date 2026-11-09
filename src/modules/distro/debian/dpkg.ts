@@ -12,7 +12,7 @@ const STATUS_PATH = "/var/lib/dpkg/status";
 const INFO_DIR = "/var/lib/dpkg/info";
 
 /** Parses one RFC822-style stanza from dpkg status. */
-function parseStanza(block: string): Record<string, string> {
+export function parseStanza(block: string): Record<string, string> {
   const fields: Record<string, string> = {};
   let current = "";
   for (const line of block.split(/\r?\n/)) {
@@ -28,7 +28,7 @@ function parseStanza(block: string): Record<string, string> {
   return fields;
 }
 
-function toRawPackage(fields: Record<string, string>): RawPackage | null {
+export function toRawPackage(fields: Record<string, string>): RawPackage | null {
   const name = fields["Package"];
   const status = fields["Status"] ?? "";
   if (!name || !status.includes("installed")) return null;

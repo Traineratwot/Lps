@@ -18,6 +18,7 @@ export function cleanExec(exec: string): string {
     .replace(/%%/g, "\u0000")
     .replace(/%[a-zA-Z]/g, "")
     .replace(/\u0000/g, "%")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
