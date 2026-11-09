@@ -7,6 +7,11 @@ const EXPORT_BIN_DIRS = [
   "/var/lib/snapd/desktop/bin",
 ];
 
+const DESKTOP_EXPORT_DIRS = [
+  "/var/lib/flatpak/exports/share/applications",
+  "/var/lib/snapd/desktop/applications",
+];
+
 function available(): boolean {
   return Bun.which("flatpak") !== null;
 }
@@ -50,8 +55,8 @@ export async function listFlatpakPackages(): Promise<RawPackage[]> {
 }
 
 /**
- * Paths of flatpak-exported binaries → app-id.
- * Covers both the export symlink and its resolved target.
+ * Flatpak-owned paths → app-id: exported binaries (symlink + target) and
+ * exported .desktop files. Used to link Command and DesktopEntry rows.
  */
 export async function flatpakPathIndex(): Promise<Map<string, string>> {
   const index = new Map<string, string>();
@@ -70,15 +75,26 @@ export async function flatpakPathIndex(): Promise<Map<string, string>> {
         const target = readlinkSync(link);
         const abs = target.startsWith("/") ? target : `${dir}/${target}`;
         index.set(abs, appId);
-        // also record the resolved realpath chain
-        const st = statSync(link); // follows
-        if (st) index.set(link, appId);
       } catch {
         // not a symlink or broken — entry name is still the app id
       }
     }
   }
+  for (const dir of DESKTOP_EXPORT_DIRS) {
+    for (const entry of safeList(dir)) {
+      const m = entry.match(/^(.+)\.desktop$/);
+      if (m) index.set(`${dir}/${entry}`, m[1]!);
+    }
+  }
   return index;
+}
+
+function safeList(dir: string): string[] {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
 }
 
 /** Extracts an app id from a flatpak path (…/app/<id>/… or exports/bin/<id>). */

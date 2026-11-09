@@ -109,8 +109,11 @@ export function extractAppImageMeta(path: string): AppImageMeta | null {
   }
 }
 
-/** All AppImages as packages (plus their embedded desktop metadata). */
+/** All AppImages as packages (plus their embedded desktop metadata). Memoized per process. */
+let cachedPackages: RawPackage[] | null = null;
+
 export async function listAppImagePackages(): Promise<RawPackage[]> {
+  if (cachedPackages) return cachedPackages;
   const result: RawPackage[] = [];
   for (const path of findAppImageFiles()) {
     const meta = extractAppImageMeta(path);
@@ -134,5 +137,10 @@ export async function listAppImagePackages(): Promise<RawPackage[]> {
       },
     });
   }
+  cachedPackages = result;
   return result;
+}
+
+export function resetAppImageCache(): void {
+  cachedPackages = null;
 }

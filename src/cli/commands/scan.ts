@@ -2,6 +2,7 @@ import { createDb, ensureSchema, type Db } from "../../core/db.ts";
 import type { LpsConfig } from "../../core/config.ts";
 import type { RawCommand, StageStats } from "../../core/types.ts";
 import type { RawPackage } from "../../modules/distro/types.ts";
+import { iconsDir } from "../../core/config.ts";
 import { ProgressBar } from "../ui/progress.ts";
 import { bold, dim, green, yellow } from "../ui/style.ts";
 import { scanPathCommands } from "../../modules/commands/path-scan.ts";
@@ -12,6 +13,9 @@ import { getManSummary } from "../../modules/docs/man.ts";
 import { getHelpSummary, type HelpSummary } from "../../modules/docs/help.ts";
 import { flatpakPathIndex, listFlatpakPackages } from "../../modules/sources/flatpak.ts";
 import { listAppImagePackages } from "../../modules/sources/appimage.ts";
+import { scanDesktopEntries } from "../../modules/desktop/entries.ts";
+import { extractIcon, resolveIcon } from "../../modules/desktop/icons.ts";
+import { execCommandName } from "../../core/util/text.ts";
 
 export type ScanOptions = {
   only?: string[];
@@ -25,10 +29,18 @@ type Stage = {
   run: (ctx: ScanCtx) => Promise<StageStats>;
 };
 
+type LinkIndex = {
+  packages: RawPackage[];
+  /** file path → `${type}:${name}` */
+  linkIndex: Map<string, string>;
+};
+
 export type ScanCtx = {
   config: LpsConfig;
   db: Db;
   distro: Awaited<ReturnType<typeof detectDistro>>;
+  /** Shared across stages so flatpak/appimage are collected once per scan. */
+  links?: LinkIndex;
 };
 
 const EMPTY_STATS = (): StageStats => ({ found: 0, written: 0, linked: 0, skipped: 0, errors: 0 });
@@ -160,11 +172,8 @@ async function runDocsStage(ctx: ScanCtx): Promise<StageStats> {
 // Stage: packages (deb + flatpak + appimage)
 // ---------------------------------------------------------------------------
 
-async function collectPackages(ctx: ScanCtx): Promise<{
-  packages: RawPackage[];
-  /** file path → `${type}:${name}` for linking */
-  linkIndex: Map<string, string>;
-}> {
+async function collectPackages(ctx: ScanCtx): Promise<LinkIndex> {
+  if (ctx.links) return ctx.links;
   const packages: RawPackage[] = [];
   const linkIndex = new Map<string, string>();
 
@@ -186,7 +195,8 @@ async function collectPackages(ctx: ScanCtx): Promise<{
     if (pkg.installPath) linkIndex.set(pkg.installPath, `appimage:${pkg.name}`);
   }
 
-  return { packages, linkIndex };
+  ctx.links = { packages, linkIndex };
+  return ctx.links;
 }
 
 async function upsertPackages(ctx: ScanCtx, raw: RawPackage[]): Promise<{ stats: StageStats; ids: Map<string, number> }> {
@@ -287,6 +297,110 @@ async function upsertAppImageCommands(ctx: ScanCtx, packages: RawPackage[]): Pro
 }
 
 // ---------------------------------------------------------------------------
+// Stage: desktop (.desktop entries + icons)
+// ---------------------------------------------------------------------------
+
+async function runDesktopStage(ctx: ScanCtx): Promise<StageStats> {
+  const stats = EMPTY_STATS();
+  const entries = scanDesktopEntries();
+  stats.found = entries.length;
+
+  const { linkIndex } = await collectPackages(ctx);
+  const pkgRows = await ctx.db.package.findMany({ select: { id: true, type: true, name: true } });
+  const pkgIds = new Map(pkgRows.map((p) => [`${p.type}:${p.name}`, p.id]));
+
+  const commands = await ctx.db.command.findMany({
+    select: { id: true, name: true, path: true, kind: true, packageId: true },
+  });
+  const byPath = new Map<string, number>();
+  const byName = new Map<string, { id: number; packageId: number | null }>();
+  for (const cmd of commands) {
+    if (cmd.path) byPath.set(cmd.path, cmd.id);
+    const existing = byName.get(cmd.name);
+    if (!existing || (cmd.packageId && !existing.packageId)) {
+      byName.set(cmd.name, { id: cmd.id, packageId: cmd.packageId });
+    }
+  }
+
+  const outDir = iconsDir(ctx.config);
+  const bar = new ProgressBar("desktop", entries.length);
+
+  try {
+    for (const entry of entries) {
+      let iconPath = "";
+      if (!ctx.config.noIcons) {
+        const resolved = resolveIcon(entry.iconName);
+        if (resolved.sourcePath) iconPath = extractIcon(resolved.sourcePath, outDir);
+      }
+
+      // link → package: by desktop file path, then by exec command's package
+      const pkgRef = linkIndex.get(entry.filePath);
+      let packageId = pkgRef ? pkgIds.get(pkgRef) : undefined;
+      const execName = execCommandName(entry.exec);
+      let commandId: number | undefined;
+      if (execName) {
+        commandId = entry.exec.startsWith("/")
+          ? byPath.get(execName)
+          : byName.get(execName)?.id;
+      }
+      if (!packageId && commandId) {
+        const cmd = commands.find((c) => c.id === commandId);
+        if (cmd?.packageId) packageId = cmd.packageId;
+      }
+
+      await ctx.db.desktopEntry.upsert({
+        where: { filePath: entry.filePath },
+        create: {
+          filePath: entry.filePath,
+          name: entry.name,
+          genericName: entry.genericName,
+          comment: entry.comment,
+          exec: entry.exec,
+          tryExec: entry.tryExec,
+          iconName: entry.iconName,
+          iconPath,
+          categories: entry.categories,
+          mimeTypes: entry.mimeTypes,
+          terminal: entry.terminal,
+          noDisplay: entry.noDisplay,
+          hidden: entry.hidden,
+          wmClass: entry.wmClass,
+          meta: JSON.stringify(entry.meta ?? {}),
+          packageId: packageId ?? null,
+          commandId: commandId ?? null,
+        },
+        update: {
+          name: entry.name,
+          genericName: entry.genericName,
+          comment: entry.comment,
+          exec: entry.exec,
+          tryExec: entry.tryExec,
+          iconName: entry.iconName,
+          iconPath,
+          categories: entry.categories,
+          mimeTypes: entry.mimeTypes,
+          terminal: entry.terminal,
+          noDisplay: entry.noDisplay,
+          hidden: entry.hidden,
+          wmClass: entry.wmClass,
+          meta: JSON.stringify(entry.meta ?? {}),
+          packageId: packageId ?? null,
+          commandId: commandId ?? null,
+        },
+      });
+      stats.written++;
+      if (packageId) stats.linked++;
+      bar.tick(entry.name);
+    }
+    bar.done(`${stats.written} entries, ${stats.linked} linked`);
+  } catch (error) {
+    stats.errors++;
+    bar.fail(error instanceof Error ? error.message : String(error));
+  }
+  return stats;
+}
+
+// ---------------------------------------------------------------------------
 // Pipeline
 // ---------------------------------------------------------------------------
 
@@ -294,6 +408,7 @@ const STAGES: Stage[] = [
   { id: "commands", title: "commands", run: runCommandsStage },
   { id: "docs", title: "docs", run: runDocsStage },
   { id: "packages", title: "packages", run: runPackagesStage },
+  { id: "desktop", title: "desktop", run: runDesktopStage },
 ];
 
 export async function runScan(config: LpsConfig, options: ScanOptions = {}): Promise<void> {
