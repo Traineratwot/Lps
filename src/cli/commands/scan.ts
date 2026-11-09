@@ -28,7 +28,7 @@ export type ScanCtx = {
   distro: Awaited<ReturnType<typeof detectDistro>>;
 };
 
-const EMPTY_STATS = (): StageStats => ({ found: 0, written: 0, skipped: 0, errors: 0 });
+const EMPTY_STATS = (): StageStats => ({ found: 0, written: 0, linked: 0, skipped: 0, errors: 0 });
 
 // ---------------------------------------------------------------------------
 // Stage: commands
@@ -154,12 +154,90 @@ async function runDocsStage(ctx: ScanCtx): Promise<StageStats> {
 }
 
 // ---------------------------------------------------------------------------
+// Stage: packages (deb; flatpak/appimage sources join in later stages)
+// ---------------------------------------------------------------------------
+
+async function upsertPackages(ctx: ScanCtx): Promise<{ stats: StageStats; ids: Map<string, number> }> {
+  const stats = EMPTY_STATS();
+  const raw = await ctx.distro.listPackages();
+  stats.found = raw.length;
+  const bar = new ProgressBar("packages", raw.length);
+  const ids = new Map<string, number>();
+  try {
+    for (const pkg of raw) {
+      const row = await ctx.db.package.upsert({
+        where: { type_name: { type: pkg.type, name: pkg.name } },
+        create: {
+          type: pkg.type,
+          name: pkg.name,
+          version: pkg.version,
+          architecture: pkg.architecture,
+          status: pkg.status,
+          maintainer: pkg.maintainer,
+          description: pkg.description,
+          section: pkg.section,
+          origin: pkg.origin,
+          installPath: pkg.installPath,
+          meta: JSON.stringify(pkg.meta ?? {}),
+        },
+        update: {
+          version: pkg.version,
+          architecture: pkg.architecture,
+          status: pkg.status,
+          maintainer: pkg.maintainer,
+          description: pkg.description,
+          section: pkg.section,
+          origin: pkg.origin,
+          installPath: pkg.installPath,
+          meta: JSON.stringify(pkg.meta ?? {}),
+        },
+      });
+      ids.set(`${pkg.type}:${pkg.name}`, row.id);
+      stats.written++;
+      bar.tick(pkg.name);
+    }
+    bar.done(`${stats.written} packages`);
+  } catch (error) {
+    stats.errors++;
+    bar.fail(error instanceof Error ? error.message : String(error));
+  }
+  return { stats, ids };
+}
+
+async function linkCommandsToPackages(ctx: ScanCtx, ids: Map<string, number>): Promise<number> {
+  const pathIndex = await ctx.distro.pathIndex();
+  const commands = await ctx.db.command.findMany({
+    select: { id: true, path: true, realPath: true, packageId: true },
+  });
+  const bar = new ProgressBar("link cmd→pkg", commands.length);
+  let linked = 0;
+  for (const cmd of commands) {
+    const pkgName = pathIndex.get(cmd.realPath) ?? (cmd.path ? pathIndex.get(cmd.path) : undefined);
+    const pkgId = pkgName ? ids.get(`deb:${pkgName}`) : undefined;
+    if (pkgId && pkgId !== cmd.packageId) {
+      await ctx.db.command.update({ where: { id: cmd.id }, data: { packageId: pkgId } });
+      linked++;
+    }
+    bar.tick();
+  }
+  bar.done(`${linked} linked`);
+  return linked;
+}
+
+async function runPackagesStage(ctx: ScanCtx): Promise<StageStats> {
+  const { stats, ids } = await upsertPackages(ctx);
+  stats.linked = await linkCommandsToPackages(ctx, ids);
+  return stats;
+}
+
+// ---------------------------------------------------------------------------
 // Pipeline
 // ---------------------------------------------------------------------------
 
 const STAGES: Stage[] = [
   { id: "commands", title: "commands", run: runCommandsStage },
   { id: "docs", title: "docs", run: runDocsStage },
+  { id: "packages", title: "packages", run: runPackagesStage },
 ];
 
 export async function runScan(config: LpsConfig, options: ScanOptions = {}): Promise<void> {
@@ -205,7 +283,7 @@ export async function runScan(config: LpsConfig, options: ScanOptions = {}): Pro
   console.log(
     `${green("✓")} scan ${dim(`#${scanRun.id}`)} done: ` +
       Object.entries(totals)
-        .map(([id, s]) => `${id}=${s.written}`)
+        .map(([id, s]) => (s.linked ? `${id}=${s.written} (${s.linked} linked)` : `${id}=${s.written}`))
         .join("  "),
   );
 

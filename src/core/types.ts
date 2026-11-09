@@ -22,6 +22,7 @@ export type RawCommand = {
 export type StageStats = {
   found: number;
   written: number;
+  linked: number;
   skipped: number;
   errors: number;
 };

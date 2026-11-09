@@ -26,6 +26,11 @@ export interface DistroModule {
   /** Paths of files owned by a package (used to build the path→package index). */
   listPackageFiles(pkg: RawPackage): Promise<string[]>;
   findPackageByPath(path: string): Promise<RawPackage | null>;
+  /**
+   * Bulk file-path → package-name index for linking commands and desktop
+   * entries to packages. In-memory only (too large for the database).
+   */
+  pathIndex(): Promise<Map<string, string>>;
   /** Virtual name→path mappings (update-alternatives). */
   listAlternatives?(): Promise<RawCommand[]>;
 }

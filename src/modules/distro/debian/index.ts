@@ -39,6 +39,10 @@ export const debianModule: DistroModule = {
     return index().byName.get(name) ?? null;
   },
 
+  async pathIndex(): Promise<Map<string, string>> {
+    return index().byPath;
+  },
+
   async listAlternatives(): Promise<RawCommand[]> {
     return scanAlternatives();
   },
