@@ -7,6 +7,7 @@ export type ApiRoute =
   | { name: "program"; id: string }
   | { name: "commands"; query: Record<string, string> }
   | { name: "command"; id: number }
+  | { name: "commandDoc"; id: number; query: Record<string, string> }
   | { name: "processes"; query: Record<string, string> }
   | { name: "process"; id: number }
   | { name: "desktop"; query: Record<string, string> }
@@ -64,6 +65,10 @@ export function matchApi(method: string, pathname: string, params: URLSearchPara
       const id = numericId(b!);
       return id != null ? { name: "icon", id } : "unknown";
     }
+  }
+  if (segments.length === 3 && a === "commands" && segments[2] === "doc") {
+    const id = numericId(b!);
+    return id != null ? { name: "commandDoc", id, query } : "unknown";
   }
   return "unknown";
 }

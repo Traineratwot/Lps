@@ -11,6 +11,7 @@ import type {
   StatsResp,
 } from "../../types.ts";
 import type { ApiRoute } from "./router.ts";
+import { renderHelpPage, renderManPage, type DocText } from "./docs.ts";
 import {
   getProgram,
   getPrograms,
@@ -90,6 +91,11 @@ export async function handleApi(ctx: ApiCtx, route: ApiRoute): Promise<Response>
       return detail ? json(detail) : json({ error: "not found" }, 404);
     }
 
+    case "commandDoc": {
+      const doc = await commandDocText(db, route.id, route.query.kind ?? "man");
+      return doc ? json(doc) : json({ error: "not found" }, 404);
+    }
+
     case "processes":
       return json(await listProcesses(db, route.query));
 
@@ -130,6 +136,18 @@ async function getStats(db: Db): Promise<StatsResp> {
     commandsByKind: Object.fromEntries(byKind.map((r) => [r.kind, r._count._all])),
     lastScan: lastScan?.startedAt.toISOString() ?? null,
   };
+}
+
+async function commandDocText(db: Db, id: number, kind: string): Promise<DocText | null> {
+  const cmd = await db.command.findUnique({
+    where: { id },
+    include: { doc: true },
+  });
+  if (!cmd) return null;
+  if (kind === "help") {
+    return renderHelpPage(cmd.name, cmd.path, cmd.kind, cmd.aliasOf);
+  }
+  return renderManPage(cmd.name, cmd.doc?.manPath ?? "");
 }
 
 async function listCommands(db: Db, query: Record<string, string>): Promise<ListResp<CommandRow>> {

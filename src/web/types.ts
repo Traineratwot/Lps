@@ -148,6 +148,13 @@ export type ListResp<T> = {
   pageSize: number;
 };
 
+export type DocText = {
+  kind: "man" | "help";
+  source: string;
+  text: string;
+  truncated: boolean;
+};
+
 export type StatsResp = {
   commands: number;
   packages: number;

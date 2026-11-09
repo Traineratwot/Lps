@@ -37,6 +37,20 @@ describe("matchApi", () => {
     expect(match("GET", "/api/icons/5")).toEqual({ name: "icon", id: 5 });
   });
 
+  test("command doc route carries kind query", () => {
+    expect(match("GET", "/api/commands/7/doc?kind=man")).toEqual({
+      name: "commandDoc",
+      id: 7,
+      query: { kind: "man" },
+    });
+    expect(match("GET", "/api/commands/7/doc")).toEqual({
+      name: "commandDoc",
+      id: 7,
+      query: {},
+    });
+    expect(match("GET", "/api/commands/x/doc")).toBe("unknown");
+  });
+
   test("numeric ids reject junk; program ids accept any slug", () => {
     expect(match("GET", "/api/commands/abc")).toBe("unknown");
     expect(match("GET", "/api/icons/1.5")).toBe("unknown");

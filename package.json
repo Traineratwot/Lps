@@ -13,7 +13,9 @@
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "schema:sync": "bun run scripts/gen-schema-sql.ts",
-    "build": "prisma generate && bun build ./src/index.ts --compile --outfile dist/lps",
+    "build:web": "bun build src/web/index.tsx --outdir dist/web --target browser --minify --entry-naming \"[name].[ext]\" --asset-naming \"[name].[ext]\" && cp src/web/public/index.html dist/web/ && cp node_modules/primereact/resources/themes/lara-light-blue/theme.css dist/web/theme-light.css && cp node_modules/primereact/resources/themes/lara-dark-blue/theme.css dist/web/theme-dark.css && mkdir -p dist/web/fonts && cp node_modules/primereact/resources/themes/lara-light-blue/fonts/InterVariable*.woff2 dist/web/fonts/",
+    "dev:web": "bun build src/web/index.tsx --outdir dist/web --target browser --entry-naming \"[name].[ext]\" --asset-naming \"[name].[ext]\" --watch",
+    "build": "prisma generate && bun run build:web && bun build ./src/index.ts --compile --asset ./dist/web --outfile dist/lps",
     "build:install": "bash scripts/install.sh",
     "uninstall": "bash scripts/uninstall.sh",
     "check": "tsc --noEmit",
@@ -28,10 +30,17 @@
   "devDependencies": {
     "@prisma/driver-adapter-utils": "7",
     "@types/bun": "latest",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "prisma": "7",
     "typescript": "^5.9.0"
   },
   "dependencies": {
-    "@prisma/client": "7"
+    "@prisma/client": "7",
+    "primeflex": "4.0.0",
+    "primeicons": "8.0.2",
+    "primereact": "10.9.9",
+    "react": "^19",
+    "react-dom": "^19"
   }
 }
