@@ -4,10 +4,11 @@ import { printCommandHelp, printGlobalHelp, printVersion } from "./cli/help.ts";
 import { runDoctor, runInit } from "./cli/commands/system.ts";
 import { runScan } from "./cli/commands/scan.ts";
 import { runExport, runList, runLogs, runShow } from "./cli/commands/query.ts";
+import { runWeb } from "./cli/commands/web.ts";
 import { red, yellow } from "./cli/ui/style.ts";
 import { resolveConfig } from "./core/config.ts";
 
-const COMMANDS = new Set(["init", "scan", "list", "show", "logs", "export", "doctor", "db"]);
+const COMMANDS = new Set(["init", "scan", "list", "show", "logs", "export", "doctor", "db", "web"]);
 
 /** scan/doctor/init mutate system state and expect root. */
 const NEEDS_ROOT = new Set(["scan"]);
@@ -66,6 +67,9 @@ async function main(): Promise<void> {
       break;
     case "export":
       await runExport(config, flags);
+      break;
+    case "web":
+      await runWeb(config, flags);
       break;
     case "db": {
       const sub = positionals[0];

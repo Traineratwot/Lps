@@ -1,9 +1,22 @@
+import { accessSync, constants, existsSync } from "node:fs";
 import { Database } from "bun:sqlite";
 import { PrismaClient } from "../generated/prisma/client.ts";
 import { BunSqliteAdapterFactory } from "./db/bun-sqlite-adapter.ts";
 import { MIGRATIONS } from "./db/schema-sql.ts";
+import type { LpsConfig } from "./config.ts";
 
 export type Db = PrismaClient;
+
+/** Thrown when the database cannot be opened at all (missing + not writable). */
+export class DbOpenError extends Error {
+  constructor(
+    readonly dbPath: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "DbOpenError";
+  }
+}
 
 export type CreateDbOptions = {
   /** Open without write access (for read-only commands run as non-root). */
@@ -18,6 +31,38 @@ export function createDb(dbPath: string, options: CreateDbOptions = {}): PrismaC
     readonly: options.readonly ?? false,
   });
   return new PrismaClient({ adapter });
+}
+
+function isWritable(path: string): boolean {
+  try {
+    accessSync(path, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Opens the DB for read queries. Works without root on a root-owned DB:
+ * falls back to read-only mode, so `sudo lps scan` + `lps list` as a user
+ * is the normal workflow.
+ *
+ * Throws {@link DbOpenError} when the DB is missing and cannot be created —
+ * callers print the actionable hint.
+ */
+export async function openDb(config: LpsConfig): Promise<Db> {
+  const exists = existsSync(config.dbPath);
+  if (exists && !isWritable(config.dbPath)) {
+    return createDb(config.dbPath, { readonly: true });
+  }
+  if (!exists && !isWritable(config.dataDir)) {
+    throw new DbOpenError(
+      config.dbPath,
+      `Database not found: ${config.dbPath} (and ${config.dataDir} is not writable)`,
+    );
+  }
+  await ensureSchema(config.dbPath);
+  return createDb(config.dbPath);
 }
 
 /**

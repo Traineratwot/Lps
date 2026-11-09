@@ -1,6 +1,6 @@
-import { accessSync, constants, existsSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import type { LpsConfig } from "../../core/config.ts";
-import { createDb, ensureSchema, type Db } from "../../core/db.ts";
+import { DbOpenError, openDb, type Db } from "../../core/db.ts";
 import { renderTable } from "../ui/table.ts";
 import { bold, cyan, dim, green, red } from "../ui/style.ts";
 import { flagString, type FlagValue } from "../args.ts";
@@ -12,32 +12,18 @@ function limitOf(flags: Flags): number {
   return Number.isFinite(v) && v > 0 ? v : 50;
 }
 
-function isWritable(path: string): boolean {
+/** openDb with a CLI-friendly error path (DbOpenError → hint + exit). */
+async function openDbOrExit(config: LpsConfig): Promise<Db> {
   try {
-    accessSync(path, constants.W_OK);
-    return true;
-  } catch {
-    return false;
+    return await openDb(config);
+  } catch (error) {
+    if (error instanceof DbOpenError) {
+      console.error(red(error.message));
+      console.error(`Run ${bold("sudo lps scan")} first, or pass ${bold("--db <path>")}.`);
+      process.exit(1);
+    }
+    throw error;
   }
-}
-
-/**
- * Opens the DB for read queries. Works without root on a root-owned DB:
- * falls back to read-only mode, so `sudo lps scan` + `lps list` as a user
- * is the normal workflow.
- */
-async function openDb(config: LpsConfig): Promise<Db> {
-  const exists = existsSync(config.dbPath);
-  if (exists && !isWritable(config.dbPath)) {
-    return createDb(config.dbPath, { readonly: true });
-  }
-  if (!exists && !isWritable(config.dataDir)) {
-    console.error(red(`Database not found: ${config.dbPath}`));
-    console.error(`Run ${bold("sudo lps scan")} first, or pass ${bold("--db <path>")}.`);
-    process.exit(1);
-  }
-  await ensureSchema(config.dbPath);
-  return createDb(config.dbPath);
 }
 
 // ---------------------------------------------------------------------------
@@ -45,7 +31,7 @@ async function openDb(config: LpsConfig): Promise<Db> {
 // ---------------------------------------------------------------------------
 
 export async function runList(config: LpsConfig, entity: string | undefined, flags: Flags): Promise<void> {
-  const db = await openDb(config);
+  const db = await openDbOrExit(config);
   try {
     switch (entity) {
       case "commands": await listCommands(db, flags); break;
@@ -163,7 +149,7 @@ export async function runShow(config: LpsConfig, target: string | undefined, _fl
     process.exitCode = 1;
     return;
   }
-  const db = await openDb(config);
+  const db = await openDbOrExit(config);
   try {
     if (/^\d+$/.test(target)) {
       await showProcess(db, Number(target));
@@ -288,7 +274,7 @@ export async function runLogs(config: LpsConfig, target: string | undefined, fla
     process.exitCode = 1;
     return;
   }
-  const db = await openDb(config);
+  const db = await openDbOrExit(config);
   try {
     const where = /^\d+$/.test(target) ? { pid: Number(target) } : { command: { name: target } };
     const rows = await db.process.findMany({
@@ -329,7 +315,7 @@ export async function runLogs(config: LpsConfig, target: string | undefined, fla
 // ---------------------------------------------------------------------------
 
 export async function runExport(config: LpsConfig, flags: Flags): Promise<void> {
-  const db = await openDb(config);
+  const db = await openDbOrExit(config);
   try {
     const format = flagString(flags, "format") ?? "json";
     const data = {

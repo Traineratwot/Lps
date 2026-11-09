@@ -7,7 +7,7 @@ export type ParsedArgs = {
 };
 
 /** Flags that take a value (everything else is boolean). */
-const VALUE_FLAGS = new Set(["db", "data-dir", "only", "users", "type", "search", "limit", "format", "out", "interval"]);
+const VALUE_FLAGS = new Set(["db", "data-dir", "only", "users", "type", "search", "limit", "format", "out", "interval", "port", "host"]);
 
 /**
  * Minimal argv parser: `lps <command> [positionals] [--flag] [--key value] [--key=value]`.

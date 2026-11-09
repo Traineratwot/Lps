@@ -9,6 +9,7 @@ const COMMANDS: Array<{ name: string; args: string; desc: string }> = [
   { name: "show", args: "<name|pkg|pid>", desc: "Show a full card for a command/package/process" },
   { name: "logs", args: "<pid|name>", desc: "Show process snapshot history" },
   { name: "export", args: "[--format json|csv]", desc: "Export index to stdout or a file" },
+  { name: "web", args: "[--port <n>] [--host <addr>]", desc: "Browse the index in a local web UI (read-only)" },
   { name: "doctor", args: "", desc: "Check environment (root, db, required tools)" },
   { name: "db", args: "path", desc: "Show database file path" },
 ];
@@ -83,6 +84,12 @@ export function printCommandHelp(command: string): void {
     case "export":
       lines.push(`  --format json|csv  Output format (default json)`);
       lines.push(`  --out <file>       Write to file instead of stdout`);
+      break;
+    case "web":
+      lines.push(`  --port <n>         Port to listen on (default 8787)`);
+      lines.push(`  --host <addr>      Address to bind (default 127.0.0.1)`);
+      lines.push(`  --open             Open the UI in the default browser`);
+      lines.push(dim("  View-only UI: programs as cards, search and filters."));
       break;
     default:
       lines.push(`  No additional options.`);
