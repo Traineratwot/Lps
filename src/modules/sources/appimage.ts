@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RawPackage } from "../distro/types.ts";
@@ -80,9 +80,12 @@ export type AppImageMeta = {
 export function extractAppImageMeta(path: string): AppImageMeta | null {
   const workDir = mkdtempSync(join(tmpdir(), "lps-appimage-"));
   try {
+    // the AppImage is an arbitrary executable — run it unprivileged
+    chmodSync(workDir, 0o777);
     runCommand([path, "--appimage-extract"], {
       timeoutMs: EXTRACT_TIMEOUT_MS,
       cwd: workDir,
+      dropPrivileges: true,
     });
     const squashRoot = join(workDir, "squashfs-root");
     if (!existsSync(squashRoot)) return null;

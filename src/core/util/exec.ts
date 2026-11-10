@@ -6,15 +6,33 @@ export type ExecResult = {
   timedOut: boolean;
 };
 
+/** uid/gid of `nobody` on Debian/Ubuntu. */
+const NOBODY_UID = 65534;
+const NOBODY_GID = 65534;
+
+export type ExecOptions = {
+  timeoutMs?: number;
+  env?: Record<string, string>;
+  cwd?: string;
+  /**
+   * Run the command as `nobody` when we are root. A stray
+   * `reboot --help` (busybox parses --help as short-flag cluster) then
+   * fails with EPERM instead of taking the machine down.
+   */
+  dropPrivileges?: boolean;
+};
+
+function canDropPrivileges(): boolean {
+  return typeof process.getuid === "function" && process.getuid() === 0;
+}
+
 /**
  * Runs a command with a hard timeout, closed stdin and bounded output.
  * Never throws — failures come back as ok:false.
  */
-export function runCommand(
-  cmd: string[],
-  options: { timeoutMs?: number; env?: Record<string, string>; cwd?: string } = {},
-): ExecResult {
+export function runCommand(cmd: string[], options: ExecOptions = {}): ExecResult {
   const timeoutMs = options.timeoutMs ?? 3000;
+  const drop = options.dropPrivileges === true && canDropPrivileges();
   try {
     const proc = Bun.spawnSync(cmd, {
       stdin: "ignore",
@@ -22,6 +40,7 @@ export function runCommand(
       stderr: "pipe",
       timeout: timeoutMs,
       cwd: options.cwd ?? "/tmp",
+      ...(drop ? { uid: NOBODY_UID, gid: NOBODY_GID } : {}),
       env: {
         PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
         LANG: "C.UTF-8",

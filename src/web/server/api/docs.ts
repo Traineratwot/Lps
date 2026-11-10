@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { runCommand } from "../../../core/util/exec.ts";
 import { readManSource, summaryFromTroff } from "../../../modules/docs/man.ts";
+import { isDangerousHelpCommand } from "../../../modules/docs/safety.ts";
 import { stripAnsi } from "../../../core/util/text.ts";
 
 export type DocText = {
@@ -56,17 +57,26 @@ export function renderHelpPage(name: string, path: string, kind: string, aliasOf
   if (kind === "alias") {
     return { kind: "help", source: "alias", text: aliasOf || "(пусто)", truncated: false };
   }
+  // never execute dangerous binaries — see modules/docs/safety.ts
+  if (isDangerousHelpCommand(name) || isDangerousHelpCommand(path)) {
+    return {
+      kind: "help",
+      source: "skipped",
+      text: "Вывод справки не запрашивается: команда входит в список опасных для запуска (см. modules/docs/safety.ts).",
+      truncated: false,
+    };
+  }
 
   if (kind === "builtin") {
     if (!Bun.which("bash")) return null;
-    const res = runCommand(["bash", "-c", `help ${name}`], { timeoutMs: 3000 });
+    const res = runCommand(["bash", "-c", `help ${name}`], { timeoutMs: 3000, dropPrivileges: true });
     const text = res.stdout || res.stderr;
     return text.trim() ? { kind: "help", source: "help", ...clip(text) } : null;
   }
 
   const bin = path || name;
   for (const flag of ["--help", "-h", "--usage"]) {
-    const res = runCommand([bin, flag], { timeoutMs: 3000 });
+    const res = runCommand([bin, flag], { timeoutMs: 3000, dropPrivileges: true });
     // code === null means the binary could not be spawned at all
     if (res.timedOut || res.code === null) continue;
     const text = res.stdout || res.stderr;

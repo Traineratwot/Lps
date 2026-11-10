@@ -1,6 +1,7 @@
 import type { CommandKind } from "../../core/types.ts";
 import { runCommand } from "../../core/util/exec.ts";
 import { stripAnsi } from "../../core/util/text.ts";
+import { isDangerousHelpCommand } from "./safety.ts";
 
 export type HelpSummary = {
   summary: string;
@@ -31,17 +32,19 @@ export function getHelpSummary(
   kind: CommandKind,
 ): HelpSummary | null {
   if (kind === "alias") return null;
+  // never execute dangerous binaries for a mere summary (safety.ts)
+  if (isDangerousHelpCommand(name) || isDangerousHelpCommand(path)) return null;
 
   if (kind === "builtin") {
     if (!Bun.which("bash")) return null;
-    const res = runCommand(["bash", "-c", `help ${name}`], { timeoutMs: HELP_TIMEOUT_MS });
+    const res = runCommand(["bash", "-c", `help ${name}`], { timeoutMs: HELP_TIMEOUT_MS, dropPrivileges: true });
     const summary = meaningfulLine(res.stdout || res.stderr);
     return summary ? { summary, flag: "help" } : null;
   }
 
   const bin = path || name;
   for (const flag of ["--help", "-h", "--usage"]) {
-    const res = runCommand([bin, flag], { timeoutMs: HELP_TIMEOUT_MS });
+    const res = runCommand([bin, flag], { timeoutMs: HELP_TIMEOUT_MS, dropPrivileges: true });
     if (res.timedOut) continue;
     const text = res.stdout || res.stderr;
     const summary = meaningfulLine(text);
