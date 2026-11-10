@@ -2,7 +2,7 @@ import React from "react";
 import { Tag } from "primereact/tag";
 import type { ServiceDetail } from "../../types.ts";
 import { api } from "../../api.ts";
-import { BackButton, LoadingBlock, useAsync } from "./shared.tsx";
+import { BackButton, EmptyHint, LoadingBlock, useAsync } from "./shared.tsx";
 import { navigate } from "../../router.ts";
 
 const STATE_SEVERITY: Record<string, "success" | "danger" | "warning" | "info" | "secondary"> = {
@@ -42,12 +42,14 @@ export function ServiceDetailPage({ id }: { id: number }): React.ReactElement {
         </div>
       </div>
 
-      {data.description && (
-        <div className="detail-section">
-          <h3>Описание</h3>
+      <div className="detail-section">
+        <h3>Описание</h3>
+        {data.description ? (
           <p style={{ margin: 0 }}>{data.description}</p>
-        </div>
-      )}
+        ) : (
+          <EmptyHint />
+        )}
+      </div>
 
       <div className="detail-section">
         <h3>Юнит</h3>
@@ -67,36 +69,41 @@ export function ServiceDetailPage({ id }: { id: number }): React.ReactElement {
         </dl>
       </div>
 
-      {(data.package || data.command) && (
-        <div className="detail-section">
-          <h3>Связи</h3>
-          <dl className="kv">
-            {data.package && (
+      <div className="detail-section">
+        <h3>Связи</h3>
+        <dl className="kv">
+          <dt>Пакет</dt>
+          <dd>
+            {data.package ? (
               <>
-                <dt>Пакет</dt>
-                <dd>
-                  {data.package.name} <span style={{ color: "var(--text-color-secondary)" }}>({data.package.type} {data.package.version})</span>
-                </dd>
+                {data.package.name}{" "}
+                <span style={{ color: "var(--text-color-secondary)" }}>
+                  ({data.package.type} {data.package.version})
+                </span>
               </>
+            ) : (
+              "—"
             )}
-            {data.command && (
+          </dd>
+          <dt>Команда</dt>
+          <dd>
+            {data.command ? (
               <>
-                <dt>Команда</dt>
-                <dd>
-                  <button
-                    type="button"
-                    className="back-link"
-                    onClick={() => navigate({ tab: "commands", id: data.command!.id })}
-                  >
-                    {data.command.name}
-                  </button>{" "}
-                  <span style={{ color: "var(--text-color-secondary)" }}>{data.command.path}</span>
-                </dd>
+                <button
+                  type="button"
+                  className="back-link"
+                  onClick={() => navigate({ tab: "commands", id: data.command!.id })}
+                >
+                  {data.command.name}
+                </button>{" "}
+                <span style={{ color: "var(--text-color-secondary)" }}>{data.command.path}</span>
               </>
+            ) : (
+              "—"
             )}
-          </dl>
-        </div>
-      )}
+          </dd>
+        </dl>
+      </div>
     </div>
   );
 }

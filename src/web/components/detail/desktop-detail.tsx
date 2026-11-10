@@ -3,7 +3,7 @@ import { Tag } from "primereact/tag";
 import type { DesktopRow } from "../../types.ts";
 import { api } from "../../api.ts";
 import { IconImg } from "../icon-img.tsx";
-import { BackButton, LoadingBlock, useAsync } from "./shared.tsx";
+import { BackButton, EmptyHint, LoadingBlock, useAsync } from "./shared.tsx";
 
 export function DesktopDetailPage({ id }: { id: number }): React.ReactElement {
   const { data, error, loading } = useAsync<DesktopRow | null>(
@@ -36,12 +36,14 @@ export function DesktopDetailPage({ id }: { id: number }): React.ReactElement {
         </div>
       </div>
 
-      {data.comment && (
-        <div className="detail-section">
-          <h3>Описание</h3>
+      <div className="detail-section">
+        <h3>Описание</h3>
+        {data.comment ? (
           <p style={{ margin: 0 }}>{data.comment}</p>
-        </div>
-      )}
+        ) : (
+          <EmptyHint />
+        )}
+      </div>
 
       <div className="detail-section">
         <h3>Ярлык</h3>

@@ -123,6 +123,13 @@ body {
   color: var(--text-color-secondary, #64748b);
 }
 
+.empty-hint {
+  color: var(--text-color-secondary, #94a3b8);
+  font-style: italic;
+  font-size: 0.88rem;
+  padding: 0.35rem 0;
+}
+
 .kv {
   display: grid;
   grid-template-columns: 160px 1fr;

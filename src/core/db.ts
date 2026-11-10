@@ -1,4 +1,5 @@
 import { accessSync, constants, existsSync } from "node:fs";
+import { dirname } from "node:path";
 import { Database } from "bun:sqlite";
 import { PrismaClient } from "../generated/prisma/client.ts";
 import { BunSqliteAdapterFactory } from "./db/bun-sqlite-adapter.ts";
@@ -33,9 +34,15 @@ export function createDb(dbPath: string, options: CreateDbOptions = {}): PrismaC
   return new PrismaClient({ adapter });
 }
 
-function isWritable(path: string): boolean {
+/**
+ * Whether we can use the database read-write. The file itself may be
+ * writable while its directory is not — SQLite still needs to create WAL
+ * and SHM sidecar files next to the database (plan risk P: readonly WAL).
+ */
+function isWritable(dbPath: string): boolean {
   try {
-    accessSync(path, constants.W_OK);
+    accessSync(dbPath, constants.W_OK);
+    accessSync(dirname(dbPath), constants.W_OK);
     return true;
   } catch {
     return false;

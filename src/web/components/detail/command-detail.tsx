@@ -3,7 +3,7 @@ import { Tag } from "primereact/tag";
 import { Button } from "primereact/button";
 import type { CommandDetail, DocText } from "../../types.ts";
 import { api } from "../../api.ts";
-import { BackButton, LoadingBlock, ServicesBlock, useAsync } from "./shared.tsx";
+import { BackButton, EmptyHint, LoadingBlock, ServicesBlock, useAsync } from "./shared.tsx";
 
 function DocViewer({ command }: { command: CommandDetail }): React.ReactElement {
   const [active, setActive] = React.useState<"man" | "help" | null>(null);
@@ -108,12 +108,14 @@ export function CommandDetailPage({ id }: { id: number }): React.ReactElement {
         </div>
       </div>
 
-      {data.doc?.summary && (
-        <div className="detail-section">
-          <h3>Описание</h3>
+      <div className="detail-section">
+        <h3>Описание</h3>
+        {data.doc?.summary ? (
           <p style={{ margin: 0 }}>{data.doc.summary}</p>
-        </div>
-      )}
+        ) : (
+          <EmptyHint />
+        )}
+      </div>
 
       <div className="detail-section">
         <h3>Расположение</h3>
@@ -131,47 +133,34 @@ export function CommandDetailPage({ id }: { id: number }): React.ReactElement {
               "—"
             )}
           </dd>
-          {data.names.filter((n) => n !== data.name).length > 0 && (
-            <>
-              <dt>Имена</dt>
-              <dd>{data.names.filter((n) => n !== data.name).join(", ")}</dd>
-            </>
-          )}
-          {data.aliases.length > 0 && (
-            <>
-              <dt>Алиасы</dt>
-              <dd>
-                {data.aliases.map((a) => (
-                  <div key={a}>{a}</div>
-                ))}
-              </dd>
-            </>
-          )}
-          {data.doc?.manPath && (
-            <>
-              <dt>Man-страница</dt>
-              <dd>
-                {data.doc.manPath} (секция {data.doc.manSection || "?"})
-              </dd>
-            </>
-          )}
-          {data.doc && (
-            <>
-              <dt>Источник doc</dt>
-              <dd>
-                {data.doc.source}
-                {data.doc.helpFlag ? ` (${data.doc.helpFlag})` : ""}
-              </dd>
-            </>
-          )}
+          <dt>Имена</dt>
+          <dd>{data.names.filter((n) => n !== data.name).join(", ") || "—"}</dd>
+          <dt>Алиасы</dt>
+          <dd>
+            {data.aliases.length > 0 ? (
+              data.aliases.map((a) => <div key={a}>{a}</div>)
+            ) : (
+              "—"
+            )}
+          </dd>
+          <dt>Man-страница</dt>
+          <dd>{data.doc?.manPath ? `${data.doc.manPath} (секция ${data.doc.manSection || "?"})` : "—"}</dd>
+          <dt>Источник doc</dt>
+          <dd>
+            {data.doc
+              ? `${data.doc.source}${data.doc.helpFlag ? ` (${data.doc.helpFlag})` : ""}`
+              : "—"}
+          </dd>
         </dl>
       </div>
 
       <DocViewer command={data} />
 
-      {data.desktopEntries.length > 0 && (
-        <div className="detail-section">
-          <h3>Ярлыки</h3>
+      <div className="detail-section">
+        <h3>Ярлыки{data.desktopEntries.length > 0 ? ` (${data.desktopEntries.length})` : ""}</h3>
+        {data.desktopEntries.length === 0 ? (
+          <EmptyHint />
+        ) : (
           <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
             {data.desktopEntries.map((d) => (
               <li key={d.id}>
@@ -179,12 +168,14 @@ export function CommandDetailPage({ id }: { id: number }): React.ReactElement {
               </li>
             ))}
           </ul>
-        </div>
-      )}
+        )}
+      </div>
 
-      {data.processes.length > 0 && (
-        <div className="detail-section">
-          <h3>Процессы ({data.processes.length})</h3>
+      <div className="detail-section">
+        <h3>Процессы{data.processes.length > 0 ? ` (${data.processes.length})` : ""}</h3>
+        {data.processes.length === 0 ? (
+          <EmptyHint />
+        ) : (
           <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
             {data.processes.map((p) => (
               <li key={p.id}>
@@ -195,8 +186,8 @@ export function CommandDetailPage({ id }: { id: number }): React.ReactElement {
               </li>
             ))}
           </ul>
-        </div>
-      )}
+        )}
+      </div>
 
       <ServicesBlock services={data.services} />
     </div>

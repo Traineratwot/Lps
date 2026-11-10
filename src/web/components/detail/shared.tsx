@@ -19,40 +19,48 @@ const STATE_SEVERITY: Record<string, "success" | "danger" | "warning" | "info" |
   inactive: "secondary",
 };
 
+/** Placeholder shown inside a block that has no data — keeps the block visible. */
+export function EmptyHint(): React.ReactElement {
+  return <div className="empty-hint">нет данных</div>;
+}
+
 /** Compact systemd services block for program/command cards. */
-export function ServicesBlock({ services }: { services: LinkedService[] }): React.ReactElement | null {
-  if (!services || services.length === 0) return null;
+export function ServicesBlock({ services }: { services: LinkedService[] }): React.ReactElement {
   return (
     <div className="detail-section">
-      <h3>Службы systemd ({services.length})</h3>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.88rem" }}>
-        <thead>
-          <tr style={{ textAlign: "left", color: "var(--text-color-secondary)" }}>
-            <th style={{ padding: "0.3rem 0.5rem" }}>Служба</th>
-            <th style={{ padding: "0.3rem 0.5rem" }}>Состояние</th>
-            <th style={{ padding: "0.3rem 0.5rem" }}>Автозапуск</th>
-            <th style={{ padding: "0.3rem 0.5rem" }}>PID</th>
-            <th style={{ padding: "0.3rem 0.5rem" }}>Описание</th>
-          </tr>
-        </thead>
-        <tbody>
-          {services.map((s) => (
-            <tr
-              key={s.id}
-              style={{ borderTop: "1px solid var(--surface-200)", cursor: "pointer" }}
-              onClick={() => navigate({ tab: "services", id: s.id })}
-            >
-              <td style={{ padding: "0.35rem 0.5rem" }}>{s.name}</td>
-              <td style={{ padding: "0.35rem 0.5rem" }}>
-                <Tag value={s.activeState || "?"} severity={STATE_SEVERITY[s.activeState] ?? "secondary"} />
-              </td>
-              <td style={{ padding: "0.35rem 0.5rem" }}>{s.enabledState || "—"}</td>
-              <td style={{ padding: "0.35rem 0.5rem" }}>{s.mainPid ?? "—"}</td>
-              <td style={{ padding: "0.35rem 0.5rem", color: "var(--text-color-secondary)" }}>{s.description}</td>
+      <h3>Службы systemd{services.length > 0 ? ` (${services.length})` : ""}</h3>
+      {services.length === 0 ? (
+        <EmptyHint />
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.88rem" }}>
+          <thead>
+            <tr style={{ textAlign: "left", color: "var(--text-color-secondary)" }}>
+              <th style={{ padding: "0.3rem 0.5rem" }}>Служба</th>
+              <th style={{ padding: "0.3rem 0.5rem" }}>Состояние</th>
+              <th style={{ padding: "0.3rem 0.5rem" }}>Автозапуск</th>
+              <th style={{ padding: "0.3rem 0.5rem" }}>PID</th>
+              <th style={{ padding: "0.3rem 0.5rem" }}>Описание</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {services.map((s) => (
+              <tr
+                key={s.id}
+                style={{ borderTop: "1px solid var(--surface-200)", cursor: "pointer" }}
+                onClick={() => navigate({ tab: "services", id: s.id })}
+              >
+                <td style={{ padding: "0.35rem 0.5rem" }}>{s.name}</td>
+                <td style={{ padding: "0.35rem 0.5rem" }}>
+                  <Tag value={s.activeState || "?"} severity={STATE_SEVERITY[s.activeState] ?? "secondary"} />
+                </td>
+                <td style={{ padding: "0.35rem 0.5rem" }}>{s.enabledState || "—"}</td>
+                <td style={{ padding: "0.35rem 0.5rem" }}>{s.mainPid ?? "—"}</td>
+                <td style={{ padding: "0.35rem 0.5rem", color: "var(--text-color-secondary)" }}>{s.description}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

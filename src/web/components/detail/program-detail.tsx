@@ -3,7 +3,7 @@ import { Tag } from "primereact/tag";
 import type { ProgramDetail } from "../../types.ts";
 import { api } from "../../api.ts";
 import { IconImg } from "../icon-img.tsx";
-import { BackButton, LoadingBlock, ServicesBlock, useAsync } from "./shared.tsx";
+import { BackButton, EmptyHint, LoadingBlock, ServicesBlock, useAsync } from "./shared.tsx";
 import { navigate } from "../../router.ts";
 
 export function ProgramDetailPage({ id }: { id: string }): React.ReactElement {
@@ -40,22 +40,24 @@ export function ProgramDetailPage({ id }: { id: string }): React.ReactElement {
         </div>
       </div>
 
-      {(data.comment || data.package?.description) && (
-        <div className="detail-section">
-          <h3>Описание</h3>
+      <div className="detail-section">
+        <h3>Описание</h3>
+        {data.comment || data.package?.description ? (
           <p style={{ margin: 0 }}>{data.comment || data.package?.description}</p>
-        </div>
-      )}
+        ) : (
+          <EmptyHint />
+        )}
+      </div>
 
-      {data.package && (
-        <div className="detail-section">
-          <h3>Пакет</h3>
+      <div className="detail-section">
+        <h3>Пакет</h3>
+        {data.package ? (
           <dl className="kv">
             <dt>Имя</dt>
             <dd>{data.package.name}</dd>
             <dt>Тип / версия</dt>
             <dd>
-              {data.package.type} / {data.package.version || "—" }
+              {data.package.type} / {data.package.version || "—"}
             </dd>
             <dt>Секция</dt>
             <dd>{data.package.section || "—"}</dd>
@@ -63,30 +65,24 @@ export function ProgramDetailPage({ id }: { id: string }): React.ReactElement {
             <dd>{data.package.architecture || "—"}</dd>
             <dt>Сопровождающий</dt>
             <dd>{data.package.maintainer || "—"}</dd>
-            {data.package.origin && (
-              <>
-                <dt>Источник</dt>
-                <dd>{data.package.origin}</dd>
-              </>
-            )}
-            {data.package.installPath && (
-              <>
-                <dt>Путь установки</dt>
-                <dd>{data.package.installPath}</dd>
-              </>
-            )}
+            <dt>Источник</dt>
+            <dd>{data.package.origin || "—"}</dd>
+            <dt>Путь установки</dt>
+            <dd>{data.package.installPath || "—"}</dd>
           </dl>
-        </div>
-      )}
+        ) : (
+          <EmptyHint />
+        )}
+      </div>
 
-      {data.desktop && (
-        <div className="detail-section">
-          <h3>Ярлык (.desktop)</h3>
+      <div className="detail-section">
+        <h3>Ярлык (.desktop)</h3>
+        {data.desktop ? (
           <dl className="kv">
             <dt>Файл</dt>
             <dd>{data.desktop.filePath}</dd>
             <dt>Exec</dt>
-            <dd>{data.desktop.exec}</dd>
+            <dd>{data.desktop.exec || "—"}</dd>
             <dt>Иконка</dt>
             <dd>{data.desktop.iconName || "—"}</dd>
             <dt>MIME</dt>
@@ -94,12 +90,16 @@ export function ProgramDetailPage({ id }: { id: string }): React.ReactElement {
             <dt>WM class</dt>
             <dd>{data.desktop.wmClass || "—"}</dd>
           </dl>
-        </div>
-      )}
+        ) : (
+          <EmptyHint />
+        )}
+      </div>
 
-      {data.commandsFull.length > 0 && (
-        <div className="detail-section">
-          <h3>Команды ({data.commandsFull.length})</h3>
+      <div className="detail-section">
+        <h3>Команды{data.commandsFull.length > 0 ? ` (${data.commandsFull.length})` : ""}</h3>
+        {data.commandsFull.length === 0 ? (
+          <EmptyHint />
+        ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.88rem" }}>
             <thead>
               <tr style={{ textAlign: "left", color: "var(--text-color-secondary)" }}>
@@ -124,12 +124,14 @@ export function ProgramDetailPage({ id }: { id: string }): React.ReactElement {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </div>
 
-      {data.processes.length > 0 && (
-        <div className="detail-section">
-          <h3>Процессы ({data.processes.length})</h3>
+      <div className="detail-section">
+        <h3>Процессы{data.processes.length > 0 ? ` (${data.processes.length})` : ""}</h3>
+        {data.processes.length === 0 ? (
+          <EmptyHint />
+        ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.88rem" }}>
             <thead>
               <tr style={{ textAlign: "left", color: "var(--text-color-secondary)" }}>
@@ -158,8 +160,8 @@ export function ProgramDetailPage({ id }: { id: string }): React.ReactElement {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </div>
 
       <ServicesBlock services={data.services} />
     </div>
