@@ -16,6 +16,7 @@
     "build:web": "bun build src/web/index.tsx --outdir dist/web --target browser --minify --entry-naming \"[name].[ext]\" --asset-naming \"[name].[ext]\" && cp src/web/public/index.html dist/web/ && cp node_modules/primereact/resources/themes/lara-light-blue/theme.css dist/web/theme-light.css && cp node_modules/primereact/resources/themes/lara-dark-blue/theme.css dist/web/theme-dark.css && mkdir -p dist/web/fonts && cp node_modules/primereact/resources/themes/lara-light-blue/fonts/InterVariable*.woff2 dist/web/fonts/",
     "dev:web": "bun build src/web/index.tsx --outdir dist/web --target browser --entry-naming \"[name].[ext]\" --asset-naming \"[name].[ext]\" --watch",
     "build": "prisma generate && bun run build:web && bun build ./src/index.ts --compile --asset ./dist/web --outfile dist/lps",
+    "build:arm64": "prisma generate && bun run build:web && bun build ./src/index.ts --compile --target=bun-linux-arm64 --asset ./dist/web --outfile dist/lps-linux-arm64",
     "build:install": "bash scripts/install.sh",
     "uninstall": "bash scripts/uninstall.sh",
     "check": "tsc --noEmit",

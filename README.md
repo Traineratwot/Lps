@@ -50,8 +50,8 @@ sudo ./dist/lps scan               # полный скан в /var/lib/lps/lps.d
 
 Публикация релиза автоматизирована: пуш тега `v*` запускает GitHub Action
 (`.github/workflows/release.yml`) — прогоны тестов, сборка single-file
-бинарника и создание релиза с этим тегом, куда вкладывается
-`lps-linux-x64`.
+бинарников и создание релиза с этим тегом, куда вкладываются
+**`lps-linux-x64`** и **`lps-linux-arm64`**.
 
 ```bash
 git tag v0.2.0

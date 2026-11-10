@@ -29,17 +29,18 @@ jobs:
       - name: Verify (types + tests)
         run: bun run verify
 
-      - name: Build single-file binary
-        run: bun run build
+      - name: Build single-file binaries
+        run: |
+          bun run build
+          mv dist/lps dist/lps-linux-x64
+          bun run build:arm64
 
-      - name: Prepare artifact
-        run: mv dist/lps "dist/lps-linux-x64"
-
-      - name: Create release with binary
+      - name: Create release with binaries
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
-            "dist/lps-linux-x64" \
+            dist/lps-linux-x64 \
+            dist/lps-linux-arm64 \
             --title "$GITHUB_REF_NAME" \
             --generate-notes
