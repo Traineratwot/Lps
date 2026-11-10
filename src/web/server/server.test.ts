@@ -211,6 +211,37 @@ describe("web server", () => {
     expect(missing.status).toBe(404);
   });
 
+  test("list endpoints sort by any column", async () => {
+    // second command so ordering is observable
+    await db.command.create({
+      data: {
+        hash: "hash-aaa",
+        name: "aaa-tool",
+        kind: "exec",
+        realPath: "/usr/bin/aaa-tool",
+        paths: JSON.stringify(["/usr/bin/aaa-tool"]),
+        names: JSON.stringify(["aaa-tool"]),
+        source: "path",
+      },
+    });
+
+    const asc = await json(await fetch(`${server.url}/api/commands?sort=name&order=asc&pageSize=50`));
+    const desc = await json(await fetch(`${server.url}/api/commands?sort=name&order=desc&pageSize=50`));
+    const ascNames = (asc.items as Array<{ name: string }>).map((r) => r.name);
+    const descNames = (desc.items as Array<{ name: string }>).map((r) => r.name);
+    expect(ascNames[0]).toBe("aaa-tool");
+    expect(descNames[0]).toBe("htop");
+
+    // numeric + computed columns
+    const byProc = await json(await fetch(`${server.url}/api/processes?sort=pid&order=desc`));
+    expect((byProc.items as Array<{ pid: number }>)[0]!.pid).toBeGreaterThanOrEqual(
+      (byProc.items as Array<{ pid: number }>)[1]?.pid ?? 0,
+    );
+
+    const byPkg = await json(await fetch(`${server.url}/api/services?sort=packageName&order=asc`));
+    expect((byPkg.items as Array<{ packageName: string | null }>)[0]!.packageName).toBe("htop");
+  });
+
   test("icons: served inside iconsDir, rejected outside", async () => {
     const ok = await fetch(`${server.url}/api/icons/1`);
     expect(ok.status).toBe(200);

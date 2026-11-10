@@ -52,6 +52,32 @@ function bool(query: Record<string, string>, key: string): boolean {
   return query[key] === "true" || query[key] === "1";
 }
 
+/**
+ * Sorts DTO rows by any displayed key (including computed ones like
+ * cpuPercent or packageName). Nulls always sort last. List sizes here are
+ * small (a few thousand rows), so sorting in memory keeps every column
+ * sortable without a per-field ORDER BY allowlist.
+ */
+function sortRows<T extends Record<string, unknown>>(rows: T[], query: Record<string, string>): T[] {
+  const key = query.sort;
+  if (!key) return rows;
+  const dir = query.order === "desc" ? -1 : 1;
+  return [...rows].sort((a, b) => {
+    const va = a[key];
+    const vb = b[key];
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
+    return String(va).localeCompare(String(vb), "ru") * dir;
+  });
+}
+
+function pageSlice<T>(rows: T[], query: Record<string, string>): T[] {
+  const { page, pageSize } = paging(query);
+  return rows.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
+}
+
 const MIME: Record<string, string> = { png: "image/png", svg: "image/svg+xml", xpm: "image/x-xpmi", jpg: "image/jpeg" };
 
 export async function handleApi(ctx: ApiCtx, route: ApiRoute): Promise<Response> {
@@ -191,29 +217,25 @@ async function listCommands(db: Db, query: Record<string, string>): Promise<List
     ...(query.kind ? { kind: query.kind } : {}),
     ...(bool(query, "orphan") ? { packageId: null } : {}),
   };
-  const [total, rows] = await Promise.all([
-    db.command.count({ where }),
-    db.command.findMany({
-      where,
-      include: { doc: true, package: { select: { name: true } }, _count: { select: { processes: true } } },
-      orderBy: { name: "asc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-  ]);
+  const rows = await db.command.findMany({
+    where,
+    include: { doc: true, package: { select: { name: true } }, _count: { select: { processes: true } } },
+    orderBy: { name: "asc" },
+  });
+  const items = rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    kind: r.kind,
+    path: r.realPath || jsonList(r.paths)[0] || "",
+    paths: jsonList(r.paths),
+    aliases: jsonList(r.aliases),
+    summary: r.doc?.summary ?? "",
+    packageName: r.package?.name ?? null,
+    processCount: r._count.processes,
+  }));
   return {
-    items: rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      kind: r.kind,
-      path: r.realPath || jsonList(r.paths)[0] || "",
-      paths: jsonList(r.paths),
-      aliases: jsonList(r.aliases),
-      summary: r.doc?.summary ?? "",
-      packageName: r.package?.name ?? null,
-      processCount: r._count.processes,
-    })),
-    total,
+    items: pageSlice(sortRows(items, query), query),
+    total: items.length,
     page,
     pageSize,
   };
@@ -287,17 +309,18 @@ async function listProcesses(db: Db, query: Record<string, string>): Promise<Lis
       : {}),
     ...(query.user ? { user: query.user } : {}),
   };
-  const [total, rows] = await Promise.all([
-    db.process.count({ where }),
-    db.process.findMany({
-      where,
-      include: PROC_INCLUDE,
-      orderBy: [{ pid: "asc" }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-  ]);
-  return { items: rows.map(processRowOf), total, page, pageSize };
+  const rows = await db.process.findMany({
+    where,
+    include: PROC_INCLUDE,
+    orderBy: [{ pid: "asc" }],
+  });
+  const items = rows.map(processRowOf);
+  return {
+    items: pageSlice(sortRows(items, query), query),
+    total: items.length,
+    page,
+    pageSize,
+  };
 }
 
 async function processDetail(db: Db, id: number): Promise<ProcessDetail | null> {
@@ -342,30 +365,26 @@ async function listServices(db: Db, query: Record<string, string>): Promise<List
     ...(query.active ? { activeState: query.active } : {}),
     ...(query.enabled ? { enabledState: query.enabled } : {}),
   };
-  const [total, rows] = await Promise.all([
-    db.systemdService.count({ where }),
-    db.systemdService.findMany({
-      where,
-      include: { package: { select: { name: true } }, command: { select: { name: true } } },
-      orderBy: [{ activeState: "desc" }, { name: "asc" }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-  ]);
+  const rows = await db.systemdService.findMany({
+    where,
+    include: { package: { select: { name: true } }, command: { select: { name: true } } },
+    orderBy: [{ activeState: "desc" }, { name: "asc" }],
+  });
+  const items = rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    activeState: r.activeState,
+    subState: r.subState,
+    enabledState: r.enabledState,
+    execStartPath: r.execStartPath,
+    mainPid: r.mainPid,
+    packageName: r.package?.name ?? null,
+    commandName: r.command?.name ?? null,
+  }));
   return {
-    items: rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      description: r.description,
-      activeState: r.activeState,
-      subState: r.subState,
-      enabledState: r.enabledState,
-      execStartPath: r.execStartPath,
-      mainPid: r.mainPid,
-      packageName: r.package?.name ?? null,
-      commandName: r.command?.name ?? null,
-    })),
-    total,
+    items: pageSlice(sortRows(items, query), query),
+    total: items.length,
     page,
     pageSize,
   };

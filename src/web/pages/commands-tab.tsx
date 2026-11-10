@@ -23,6 +23,8 @@ export function CommandsTab(): React.ReactElement {
   const [orphan, setOrphan] = React.useState(false);
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(24);
+  const [sort, setSort] = React.useState<string | undefined>(undefined);
+  const [order, setOrder] = React.useState<"asc" | "desc">("asc");
   const [items, setItems] = React.useState<CommandRow[]>([]);
   const [total, setTotal] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
@@ -31,7 +33,7 @@ export function CommandsTab(): React.ReactElement {
     setLoading(true);
     const timer = setTimeout(() => {
       api
-        .commands({ q, kind: kind === "all" ? undefined : kind, orphan, page, pageSize })
+        .commands({ q, kind: kind === "all" ? undefined : kind, orphan, page, pageSize, sort, order })
         .then((r) => {
           setItems(r.items);
           setTotal(r.total);
@@ -39,7 +41,7 @@ export function CommandsTab(): React.ReactElement {
         .finally(() => setLoading(false));
     }, 200);
     return () => clearTimeout(timer);
-  }, [q, kind, orphan, page, pageSize]);
+  }, [q, kind, orphan, page, pageSize, sort, order]);
 
   return (
     <div>
@@ -80,18 +82,26 @@ export function CommandsTab(): React.ReactElement {
         onRowClick={(e) => navigate({ tab: "commands", id: (e.data as CommandRow).id })}
         rowHover
         style={{ cursor: "pointer" }}
+        sortField={sort}
+        sortOrder={order === "desc" ? -1 : 1}
+        onSort={(e) => {
+          setSort(e.sortField as string);
+          setOrder(e.sortOrder === -1 ? "desc" : "asc");
+          setPage(1);
+        }}
       >
         <Column field="name" header="Имя" sortable style={{ width: "16%" }} />
         <Column
           field="kind"
           header="Вид"
+          sortable
           style={{ width: "9%" }}
           body={(r: CommandRow) => <Tag value={r.kind} severity={r.kind === "exec" ? "info" : "secondary"} />}
         />
-        <Column field="path" header="Путь" style={{ width: "26%" }} body={(r: CommandRow) => <span style={{ fontSize: "0.82rem" }}>{r.path || "—"}</span>} />
-        <Column field="summary" header="Описание" body={(r: CommandRow) => <span style={{ color: "var(--text-color-secondary)" }}>{r.summary}</span>} />
-        <Column field="packageName" header="Пакет" style={{ width: "12%" }} body={(r: CommandRow) => r.packageName ?? "—"} />
-        <Column field="processCount" header="Проц." style={{ width: "6%" }} />
+        <Column field="path" header="Путь" sortable style={{ width: "26%" }} body={(r: CommandRow) => <span style={{ fontSize: "0.82rem" }}>{r.path || "—"}</span>} />
+        <Column field="summary" header="Описание" sortable body={(r: CommandRow) => <span style={{ color: "var(--text-color-secondary)" }}>{r.summary}</span>} />
+        <Column field="packageName" header="Пакет" sortable style={{ width: "12%" }} body={(r: CommandRow) => r.packageName ?? "—"} />
+        <Column field="processCount" header="Проц." sortable style={{ width: "6%" }} />
       </DataTable>
 
       <div className="toolbar-row" style={{ marginTop: "0.75rem", justifyContent: "flex-end" }}>

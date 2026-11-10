@@ -18,6 +18,8 @@ export function ServicesTab(): React.ReactElement {
   const [q, setQ] = React.useState("");
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(24);
+  const [sort, setSort] = React.useState<string | undefined>(undefined);
+  const [order, setOrder] = React.useState<"asc" | "desc">("asc");
   const [items, setItems] = React.useState<ServiceRow[]>([]);
   const [total, setTotal] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
@@ -26,7 +28,7 @@ export function ServicesTab(): React.ReactElement {
     setLoading(true);
     const timer = setTimeout(() => {
       api
-        .services({ q, page, pageSize })
+        .services({ q, page, pageSize, sort, order })
         .then((r) => {
           setItems(r.items);
           setTotal(r.total);
@@ -34,7 +36,7 @@ export function ServicesTab(): React.ReactElement {
         .finally(() => setLoading(false));
     }, 200);
     return () => clearTimeout(timer);
-  }, [q, page, pageSize]);
+  }, [q, page, pageSize, sort, order]);
 
   return (
     <div>
@@ -62,9 +64,17 @@ export function ServicesTab(): React.ReactElement {
         onRowClick={(e) => navigate({ tab: "services", id: (e.data as ServiceRow).id })}
         rowHover
         style={{ cursor: "pointer" }}
+        sortField={sort}
+        sortOrder={order === "desc" ? -1 : 1}
+        onSort={(e) => {
+          setSort(e.sortField as string);
+          setOrder(e.sortOrder === -1 ? "desc" : "asc");
+          setPage(1);
+        }}
       >
         <Column field="name" header="Служба" sortable style={{ width: "20%" }} />
         <Column
+          sortable
           field="activeState"
           header="Состояние"
           style={{ width: "10%" }}
@@ -72,15 +82,16 @@ export function ServicesTab(): React.ReactElement {
             <Tag value={r.activeState || "?"} severity={STATE_SEVERITY[r.activeState] ?? "secondary"} />
           )}
         />
-        <Column field="enabledState" header="Автозапуск" style={{ width: "10%" }} />
-        <Column field="mainPid" header="PID" style={{ width: "7%" }} body={(r: ServiceRow) => r.mainPid ?? "—"} />
+        <Column sortable field="enabledState" header="Автозапуск" style={{ width: "10%" }} />
+        <Column sortable field="mainPid" header="PID" style={{ width: "7%" }} body={(r: ServiceRow) => r.mainPid ?? "—"} />
         <Column
+          sortable
           field="description"
           header="Описание"
           body={(r: ServiceRow) => <span style={{ color: "var(--text-color-secondary)" }}>{r.description}</span>}
         />
-        <Column field="packageName" header="Пакет" style={{ width: "13%" }} body={(r: ServiceRow) => r.packageName ?? "—"} />
-        <Column field="commandName" header="Команда" style={{ width: "11%" }} body={(r: ServiceRow) => r.commandName ?? "—"} />
+        <Column field="packageName" sortable header="Пакет" style={{ width: "13%" }} body={(r: ServiceRow) => r.packageName ?? "—"} />
+        <Column field="commandName" sortable header="Команда" style={{ width: "11%" }} body={(r: ServiceRow) => r.commandName ?? "—"} />
       </DataTable>
 
       <div className="toolbar-row" style={{ marginTop: "0.75rem", justifyContent: "flex-end" }}>

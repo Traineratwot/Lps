@@ -11,6 +11,8 @@ export function ProcessesTab(): React.ReactElement {
   const [q, setQ] = React.useState("");
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(24);
+  const [sort, setSort] = React.useState<string | undefined>(undefined);
+  const [order, setOrder] = React.useState<"asc" | "desc">("asc");
   const [items, setItems] = React.useState<ProcessRow[]>([]);
   const [total, setTotal] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
@@ -19,7 +21,7 @@ export function ProcessesTab(): React.ReactElement {
     setLoading(true);
     const timer = setTimeout(() => {
       api
-        .processes({ q, page, pageSize })
+        .processes({ q, page, pageSize, sort, order })
         .then((r) => {
           setItems(r.items);
           setTotal(r.total);
@@ -27,7 +29,7 @@ export function ProcessesTab(): React.ReactElement {
         .finally(() => setLoading(false));
     }, 200);
     return () => clearTimeout(timer);
-  }, [q, page, pageSize]);
+  }, [q, page, pageSize, sort, order]);
 
   return (
     <div>
@@ -55,10 +57,18 @@ export function ProcessesTab(): React.ReactElement {
         onRowClick={(e) => navigate({ tab: "processes", id: (e.data as ProcessRow).id })}
         rowHover
         style={{ cursor: "pointer" }}
+        sortField={sort}
+        sortOrder={order === "desc" ? -1 : 1}
+        onSort={(e) => {
+          setSort(e.sortField as string);
+          setOrder(e.sortOrder === -1 ? "desc" : "asc");
+          setPage(1);
+        }}
       >
-        <Column field="pid" header="PID" style={{ width: "7%" }} />
-        <Column field="user" header="User" style={{ width: "9%" }} />
+        <Column field="pid" sortable header="PID" style={{ width: "7%" }} />
+        <Column field="user" sortable header="User" style={{ width: "9%" }} />
         <Column
+          sortable
           field="cmdline"
           header="Команда"
           body={(r: ProcessRow) => (
@@ -66,20 +76,22 @@ export function ProcessesTab(): React.ReactElement {
           )}
         />
         <Column
+          sortable
           field="state"
           header="Сост."
           style={{ width: "7%" }}
           body={(r: ProcessRow) => <Tag value={r.state} severity={r.state === "R" ? "success" : "secondary"} />}
         />
-        <Column field="cpuPercent" header="CPU %" style={{ width: "8%" }} body={(r: ProcessRow) => r.cpuPercent ?? "—"} />
-        <Column field="rssKb" header="RSS, КБ" style={{ width: "9%" }} body={(r: ProcessRow) => r.rssKb ?? "—"} />
+        <Column sortable field="cpuPercent" header="CPU %" style={{ width: "8%" }} body={(r: ProcessRow) => r.cpuPercent ?? "—"} />
+        <Column sortable field="rssKb" header="RSS, КБ" style={{ width: "9%" }} body={(r: ProcessRow) => r.rssKb ?? "—"} />
         <Column
+          sortable
           field="uptimeSec"
           header="Аптайм"
           style={{ width: "9%" }}
           body={(r: ProcessRow) => (r.uptimeSec != null ? `${r.uptimeSec} с` : "—")}
         />
-        <Column field="packageName" header="Пакет" style={{ width: "13%" }} body={(r: ProcessRow) => r.packageName ?? "—"} />
+        <Column field="packageName" sortable header="Пакет" style={{ width: "13%" }} body={(r: ProcessRow) => r.packageName ?? "—"} />
       </DataTable>
 
       <div className="toolbar-row" style={{ marginTop: "0.75rem", justifyContent: "flex-end" }}>
