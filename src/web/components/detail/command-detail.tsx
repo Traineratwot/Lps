@@ -3,7 +3,7 @@ import { Tag } from "primereact/tag";
 import { Button } from "primereact/button";
 import type { CommandDetail, DocText } from "../../types.ts";
 import { api } from "../../api.ts";
-import { BackButton, LoadingBlock, useAsync } from "./shared.tsx";
+import { BackButton, LoadingBlock, ServicesBlock, useAsync } from "./shared.tsx";
 
 function DocViewer({ command }: { command: CommandDetail }): React.ReactElement {
   const [active, setActive] = React.useState<"man" | "help" | null>(null);
@@ -197,6 +197,8 @@ export function CommandDetailPage({ id }: { id: number }): React.ReactElement {
           </ul>
         </div>
       )}
+
+      <ServicesBlock services={data.services} />
     </div>
   );
 }

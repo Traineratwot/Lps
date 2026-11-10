@@ -230,6 +230,10 @@ async function commandDetail(db: Db, id: number): Promise<CommandDetail | null> 
     },
   });
   if (!r) return null;
+  const serviceRows = await db.systemdService.findMany({
+    where: { OR: [{ commandId: r.id }, ...(r.packageId ? [{ packageId: r.packageId }] : [])] },
+    orderBy: [{ activeState: "desc" }, { name: "asc" }],
+  });
   return {
     id: r.id,
     name: r.name,
@@ -263,6 +267,15 @@ async function commandDetail(db: Db, id: number): Promise<CommandDetail | null> 
       : null,
     desktopEntries: r.desktopEntries,
     processes: r.processes.map(processRowOf),
+    services: serviceRows.map((sv) => ({
+      id: sv.id,
+      name: sv.name,
+      description: sv.description,
+      activeState: sv.activeState,
+      enabledState: sv.enabledState,
+      execStartPath: sv.execStartPath,
+      mainPid: sv.mainPid,
+    })),
   };
 }
 

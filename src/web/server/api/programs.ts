@@ -340,6 +340,31 @@ const PROC_INCLUDE = {
   snapshots: { orderBy: { observedAt: "desc" as const }, take: 1 },
 };
 
+/** Services attached to a program: by package and by any of its commands. */
+async function linkedServices(
+  db: Db,
+  packageId: number | null | undefined,
+  commandIds: number[],
+): Promise<ProgramDetail["services"]> {
+  const or: Array<Record<string, unknown>> = [];
+  if (packageId != null) or.push({ packageId });
+  if (commandIds.length > 0) or.push({ commandId: { in: commandIds } });
+  if (or.length === 0) return [];
+  const rows = await db.systemdService.findMany({
+    where: { OR: or },
+    orderBy: [{ activeState: "desc" }, { name: "asc" }],
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    activeState: r.activeState,
+    enabledState: r.enabledState,
+    execStartPath: r.execStartPath,
+    mainPid: r.mainPid,
+  }));
+}
+
 export async function getProgram(db: Db, id: string, iconsRoot: string): Promise<ProgramDetail | null> {
   const [kind, rawId] = id.split(":");
   const num = Number.parseInt(rawId ?? "", 10);
@@ -411,6 +436,11 @@ export async function getProgram(db: Db, id: string, iconsRoot: string): Promise
         : null,
       commandsFull: commandsFull.map(commandFullOf),
       processes: processes.map(processRowOf),
+    services: await linkedServices(
+      db,
+      pkgId,
+      commandsFull.map((c) => c.id),
+    ),
     };
   }
 
@@ -457,6 +487,11 @@ export async function getProgram(db: Db, id: string, iconsRoot: string): Promise
     },
     commandsFull: commandsFull.map(commandFullOf),
     processes: processes.map(processRowOf),
+    services: await linkedServices(
+      db,
+      p.id,
+      commandsFull.map((c) => c.id),
+    ),
   };
 }
 

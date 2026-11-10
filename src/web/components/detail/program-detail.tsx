@@ -3,7 +3,7 @@ import { Tag } from "primereact/tag";
 import type { ProgramDetail } from "../../types.ts";
 import { api } from "../../api.ts";
 import { IconImg } from "../icon-img.tsx";
-import { BackButton, LoadingBlock, useAsync } from "./shared.tsx";
+import { BackButton, LoadingBlock, ServicesBlock, useAsync } from "./shared.tsx";
 import { navigate } from "../../router.ts";
 
 export function ProgramDetailPage({ id }: { id: string }): React.ReactElement {
@@ -160,6 +160,8 @@ export function ProgramDetailPage({ id }: { id: string }): React.ReactElement {
           </table>
         </div>
       )}
+
+      <ServicesBlock services={data.services} />
     </div>
   );
 }

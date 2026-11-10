@@ -25,10 +25,10 @@ function mimeOf(path: string): string {
   return MIME[path.split(".").pop()?.toLowerCase() ?? ""] ?? "application/octet-stream";
 }
 
-function cacheFor(relPath: string): string {
-  return relPath === "index.html" || relPath.endsWith("/index.html")
-    ? "no-cache"
-    : "public, max-age=3600";
+function cacheFor(_relPath: string): string {
+  // Local tool: never cache app assets, so a rebuilt binary is visible on a
+  // plain refresh (icons are content-hashed and cached separately by the API).
+  return "no-cache";
 }
 
 function safeRelative(relPath: string): string | null {

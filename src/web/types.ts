@@ -68,6 +68,7 @@ export type ProgramDetail = ProgramCard & {
     manSection: string;
   }[];
   processes: ProcessRow[];
+  services: LinkedService[];
 };
 
 export type CommandRow = {
@@ -97,6 +98,7 @@ export type CommandDetail = CommandRow & {
   package: PackageRef | null;
   desktopEntries: { id: number; name: string; filePath: string }[];
   processes: ProcessRow[];
+  services: LinkedService[];
 };
 
 export type ProcessRow = {
@@ -143,6 +145,17 @@ export type DesktopRow = {
   filePath: string;
   packageName: string | null;
   commandName: string | null;
+};
+
+/** Compact service link used on program/command cards. */
+export type LinkedService = {
+  id: number;
+  name: string;
+  description: string;
+  activeState: string;
+  enabledState: string;
+  execStartPath: string;
+  mainPid: number | null;
 };
 
 export type ServiceRow = {
