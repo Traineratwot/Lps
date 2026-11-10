@@ -46,6 +46,18 @@ sudo ./dist/lps scan               # полный скан в /var/lib/lps/lps.d
 Бинарник **самодостаточный** (114 МБ — Bun-рантайм внутри), без node_modules
 и нативных `.node`-модулей.
 
+## Релизы
+
+Публикация релиза автоматизирована: пуш тега `v*` запускает GitHub Action
+(`.github/workflows/release.yml`) — прогоны тестов, сборка single-file
+бинарника и создание релиза с этим тегом, куда вкладывается
+`lps-linux-x64`.
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
 ## Команды CLI
 
 ```
