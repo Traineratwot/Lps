@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f8ef7"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <!-- indexed program cards inside the search lens -->
+  <g transform="translate(30 30) rotate(0)">
+    <rect x="-10" y="-11" width="20" height="5" rx="2.5" fill="#ffffff" opacity="0.9"/>
+    <rect x="-10" y="-3" width="20" height="5" rx="2.5" fill="#ffffff" opacity="0.75"/>
+    <rect x="-10" y="5" width="20" height="5" rx="2.5" fill="#ffffff" opacity="0.6"/>
+  </g>
+  <!-- magnifier -->
+  <circle cx="30" cy="30" r="16.5" fill="none" stroke="#ffffff" stroke-width="5"/>
+  <line x1="42" y1="42" x2="52.5" y2="52.5" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+</svg>

@@ -1,5 +1,9 @@
 # LPS — индекс программ для Debian/Ubuntu
 
+<p align="center">
+  <img src="assets/icon-512.png" alt="LPS" width="112">
+</p>
+
 CLI-утилита, которая собирает в SQLite полный индекс программной системы:
 **команды, пакеты (deb / flatpak / AppImage), десктопные ярлыки с иконками и
 процессы** — и связывает всё это между собой. Результат — база для просмотра
@@ -57,6 +61,20 @@ sudo ./dist/lps scan               # полный скан в /var/lib/lps/lps.d
 git tag v0.2.0
 git push origin v0.2.0
 ```
+
+## Иконка
+
+SVG-мастер: `assets/icon.svg`; фавиконы и PNG генерируются скриптом
+`bun run icons` (`scripts/gen-icons.ts`, sharp как dev-зависимость):
+
+- `src/web/public/favicon.{svg,ico}` + `favicon-{16,32}.png`, `icon-180.png` — favicon веб-интерфейса;
+- `assets/icon-512.png` — логотип (README);
+- `assets/social-preview.png` (1280×640) — картинка для соцсетей.
+
+> GitHub не имеет API для смены иконки/социального превью репозитория
+> (открытая feature request). Превью ставится вручную: страница репозитория
+> → Settings → Social preview → загрузить `assets/social-preview.png`.
+> Квадратная иконка рядом с именем репозитория — это аватар владельца.
 
 ## Команды CLI
 
