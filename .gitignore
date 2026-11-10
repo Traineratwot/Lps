@@ -9,3 +9,7 @@ src/generated/
 .idea/
 .mimocode/
 lps-web-*.png
+.agents/
+.claude/
+.windsurf/
+skills-lock.json
