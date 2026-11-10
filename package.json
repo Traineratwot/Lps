@@ -1,6 +1,6 @@
 {
   "name": "lps",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "LPS — index of installed and running programs for Debian/Ubuntu",
   "type": "module",
   "bin": {

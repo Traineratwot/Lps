@@ -1,6 +1,6 @@
 import { bold, dim, cyan } from "./ui/style.ts";
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 
 const COMMANDS: Array<{ name: string; args: string; desc: string }> = [
   { name: "init", args: "", desc: "Create or upgrade the database schema (idempotent)" },
