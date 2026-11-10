@@ -1,7 +1,7 @@
 import type { RawCommand } from "../../core/types.ts";
 
 export type RawPackage = {
-  type: "deb" | "flatpak" | "appimage";
+  type: "deb" | "flatpak" | "appimage" | "snap";
   name: string;
   version: string;
   architecture: string;

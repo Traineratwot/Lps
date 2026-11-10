@@ -14,6 +14,7 @@ const TYPE_OPTIONS = [
   { label: "deb", value: "deb" },
   { label: "flatpak", value: "flatpak" },
   { label: "appimage", value: "appimage" },
+  { label: "snap", value: "snap" },
 ];
 
 export function ProgramsTab(): React.ReactElement {

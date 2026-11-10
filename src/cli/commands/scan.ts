@@ -15,6 +15,7 @@ import { getManSummary } from "../../modules/docs/man.ts";
 import { getHelpSummary, type HelpSummary } from "../../modules/docs/help.ts";
 import { flatpakPathIndex, listFlatpakPackages } from "../../modules/sources/flatpak.ts";
 import { listAppImagePackages } from "../../modules/sources/appimage.ts";
+import { listSnapPackages, snapPathIndex } from "../../modules/sources/snap.ts";
 import { scanDesktopEntries } from "../../modules/desktop/entries.ts";
 import { extractIcon, resolveIcon } from "../../modules/desktop/icons.ts";
 import { execCommandName } from "../../core/util/text.ts";
@@ -266,6 +267,12 @@ async function collectPackages(ctx: ScanCtx): Promise<LinkIndex> {
   packages.push(...appImages);
   for (const pkg of appImages) {
     if (pkg.installPath) linkIndex.set(pkg.installPath, `appimage:${pkg.name}`);
+  }
+
+  const snaps = await listSnapPackages();
+  packages.push(...snaps);
+  for (const [path, name] of await snapPathIndex(snaps.map((s) => s.name))) {
+    linkIndex.set(path, `snap:${name}`);
   }
 
   ctx.links = { packages, linkIndex };

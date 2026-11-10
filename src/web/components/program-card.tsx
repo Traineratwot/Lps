@@ -8,6 +8,7 @@ const TYPE_SEVERITY: Record<string, "info" | "success" | "warning" | "danger"> =
   deb: "info",
   flatpak: "success",
   appimage: "warning",
+  snap: "info",
 };
 
 export function ProgramCardView({ card }: { card: ProgramCard }): React.ReactElement {

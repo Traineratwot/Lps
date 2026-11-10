@@ -15,7 +15,7 @@ CLI-утилита, которая собирает в SQLite полный ин�
 |---|---|---|
 | Команды | имя, пути, realPath, алиасы, builtins, alternatives | `$PATH`, shell-rc, `compgen -b`, `/etc/alternatives` |
 | Документация | summary + путь к man-странице | секция NAME man-страниц, fallback `--help` |
-| Пакеты | имя, версия, описание, связи | `dpkg` (status + info/\*.list), `flatpak`, AppImage |
+| Пакеты | имя, версия, описание, связи | `dpkg` (status + info/\*.list), `flatpak`, `snap`, AppImage |
 | Ярлыки | .desktop + извлечённые иконки | XDG-каталоги, темы иконок, flatpak exports |
 | Процессы | запуск, uptime, cpu, rss; снапшоты-логи | `/proc` |
 | Службы systemd | юнит, состояние, автозапуск; связи с пакетом и командой | unit-файлы + `systemctl show` |
@@ -83,7 +83,7 @@ lps init                      создать/обновить схему БД (�
 lps scan [--only <stages>]    сканирование: commands, docs, packages, desktop, processes
         [--skip-docs] [--no-icons] [--users u1,u2]
 lps list <entity>             commands | packages | desktop | processes
-        [--type deb|flatpak|appimage] [--search <substr>] [--limit N] [--orphan]
+        [--type deb|flatpak|snap|appimage] [--search <substr>] [--limit N] [--orphan]
 lps show <target>             имя команды | pkg:<имя> | pid
 lps logs <pid|name>           история снапшотов процесса
 lps export [--format json|csv] [--out <file>]
