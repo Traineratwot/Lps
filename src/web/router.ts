@@ -1,14 +1,15 @@
 /** Minimal hash router (pure, unit-tested). */
 
-export type Tab = "programs" | "commands" | "processes" | "desktop";
+export type Tab = "programs" | "commands" | "processes" | "services" | "desktop";
 
 export type Route =
   | { tab: "programs"; id: string | null }
   | { tab: "commands"; id: number | null }
   | { tab: "processes"; id: number | null }
+  | { tab: "services"; id: number | null }
   | { tab: "desktop"; id: number | null };
 
-const TABS: Tab[] = ["programs", "commands", "processes", "desktop"];
+const TABS: Tab[] = ["programs", "commands", "processes", "services", "desktop"];
 
 export function parseHash(hash: string): Route {
   const raw = hash.replace(/^#\/?/, "");

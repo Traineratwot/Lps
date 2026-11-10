@@ -30,3 +30,22 @@ export type StageStats = {
   skipped: number;
   errors: number;
 };
+
+export type RawService = {
+  /** Unit name, e.g. "ssh.service". */
+  name: string;
+  description: string;
+  /** Absolute path of the unit file; "" when only known from systemd runtime. */
+  unitPath: string;
+  activeState: string;
+  subState: string;
+  /** enabled | disabled | static | masked | "" when unknown. */
+  enabledState: string;
+  /** Raw ExecStart= line. */
+  execStart: string;
+  /** Absolute path of the ExecStart executable, "" when unknown. */
+  execStartPath: string;
+  user: string;
+  wantedBy: string;
+  mainPid: number | null;
+};

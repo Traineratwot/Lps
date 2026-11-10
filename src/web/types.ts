@@ -145,6 +145,28 @@ export type DesktopRow = {
   commandName: string | null;
 };
 
+export type ServiceRow = {
+  id: number;
+  name: string;
+  description: string;
+  activeState: string;
+  subState: string;
+  enabledState: string;
+  execStartPath: string;
+  mainPid: number | null;
+  packageName: string | null;
+  commandName: string | null;
+};
+
+export type ServiceDetail = ServiceRow & {
+  unitPath: string;
+  execStart: string;
+  user: string;
+  wantedBy: string;
+  package: PackageRef | null;
+  command: CommandRow | null;
+};
+
 export type ListResp<T> = {
   items: T[];
   total: number;
@@ -164,6 +186,7 @@ export type StatsResp = {
   packages: number;
   desktopEntries: number;
   processes: number;
+  services: number;
   packagesByType: Record<string, number>;
   commandsByKind: Record<string, number>;
   lastScan: string | null;

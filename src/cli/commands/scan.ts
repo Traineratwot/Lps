@@ -20,12 +20,13 @@ import { extractIcon, resolveIcon } from "../../modules/desktop/icons.ts";
 import { execCommandName } from "../../core/util/text.ts";
 import { bootTime, computeMetrics, listProcesses, startedAtIso } from "../../core/util/proc.ts";
 import { listUsers } from "../../core/util/users.ts";
+import { listSystemdServices } from "../../modules/systemd/collect.ts";
 
 export type ScanOptions = {
   only?: string[];
 };
 
-type StageId = "commands" | "docs" | "packages" | "desktop" | "processes";
+type StageId = "commands" | "docs" | "packages" | "services" | "desktop" | "processes";
 
 type Stage = {
   id: StageId;
@@ -614,6 +615,94 @@ async function runProcessesStage(ctx: ScanCtx): Promise<StageStats> {
 }
 
 // ---------------------------------------------------------------------------
+// Stage: services (systemd units → packages/commands)
+// ---------------------------------------------------------------------------
+
+async function runServicesStage(ctx: ScanCtx): Promise<StageStats> {
+  const stats = EMPTY_STATS();
+  const services = listSystemdServices();
+  stats.found = services.length;
+
+  const { linkIndex } = await collectPackages(ctx);
+  const pkgRows = await ctx.db.package.findMany({ select: { id: true, type: true, name: true } });
+  const pkgIds = new Map(pkgRows.map((p) => [`${p.type}:${p.name}`, p.id]));
+
+  const commands = await ctx.db.command.findMany({
+    select: { id: true, name: true, names: true, paths: true, realPath: true, packageId: true },
+  });
+  const byRealPath = new Map<string, number>();
+  const byPath = new Map<string, number>();
+  const byName = new Map<string, number>();
+  for (const cmd of commands) {
+    if (cmd.realPath && !byRealPath.has(cmd.realPath)) byRealPath.set(cmd.realPath, cmd.id);
+    for (const p of jsonList(cmd.paths)) if (!byPath.has(p)) byPath.set(p, cmd.id);
+    for (const n of [cmd.name, ...jsonList(cmd.names)]) if (!byName.has(n)) byName.set(n, cmd.id);
+  }
+
+  const bar = new ProgressBar("services", services.length);
+  try {
+    for (const svc of services) {
+      // unit file → package (dpkg lists /lib/systemd/system/*.service)
+      const pkgRef = svc.unitPath ? lookupLink(linkIndex, svc.unitPath, "[]") : undefined;
+      let packageId = pkgRef ? pkgIds.get(pkgRef) : undefined;
+
+      // ExecStart binary → command
+      let commandId: number | undefined;
+      if (svc.execStartPath) {
+        commandId = byRealPath.get(svc.execStartPath) ?? byPath.get(svc.execStartPath);
+      }
+      if (!commandId && svc.execStart) {
+        commandId = byName.get(svc.execStartPath.split("/").pop() ?? "");
+      }
+      if (!packageId && commandId) {
+        packageId = commands.find((c) => c.id === commandId)?.packageId ?? undefined;
+      }
+
+      await ctx.db.systemdService.upsert({
+        where: { name: svc.name },
+        create: {
+          name: svc.name,
+          description: svc.description,
+          unitPath: svc.unitPath,
+          activeState: svc.activeState,
+          subState: svc.subState,
+          enabledState: svc.enabledState,
+          execStart: svc.execStart,
+          execStartPath: svc.execStartPath,
+          user: svc.user,
+          wantedBy: svc.wantedBy,
+          mainPid: svc.mainPid,
+          packageId: packageId ?? null,
+          commandId: commandId ?? null,
+        },
+        update: {
+          description: svc.description,
+          unitPath: svc.unitPath,
+          activeState: svc.activeState,
+          subState: svc.subState,
+          enabledState: svc.enabledState,
+          execStart: svc.execStart,
+          execStartPath: svc.execStartPath,
+          user: svc.user,
+          wantedBy: svc.wantedBy,
+          mainPid: svc.mainPid,
+          packageId: packageId ?? null,
+          commandId: commandId ?? null,
+        },
+      });
+      stats.written++;
+      if (packageId || commandId) stats.linked++;
+      bar.tick(svc.name);
+    }
+    bar.done(`${stats.written} services, ${stats.linked} linked`);
+  } catch (error) {
+    stats.errors++;
+    bar.fail(error instanceof Error ? error.message : String(error));
+  }
+  return stats;
+}
+
+// ---------------------------------------------------------------------------
 // Pipeline
 // ---------------------------------------------------------------------------
 
@@ -621,6 +710,7 @@ const STAGES: Stage[] = [
   { id: "commands", title: "commands", run: runCommandsStage },
   { id: "docs", title: "docs", run: runDocsStage },
   { id: "packages", title: "packages", run: runPackagesStage },
+  { id: "services", title: "services", run: runServicesStage },
   { id: "desktop", title: "desktop", run: runDesktopStage },
   { id: "processes", title: "processes", run: runProcessesStage },
 ];

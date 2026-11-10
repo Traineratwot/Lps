@@ -8,13 +8,15 @@ import { applyTheme, currentTheme, type ThemeName } from "./theme.ts";
 import { ProgramsTab } from "./pages/programs-tab.tsx";
 import { CommandsTab } from "./pages/commands-tab.tsx";
 import { ProcessesTab } from "./pages/processes-tab.tsx";
+import { ServicesTab } from "./pages/services-tab.tsx";
 import { DesktopTab } from "./pages/desktop-tab.tsx";
 import { ProgramDetailPage } from "./components/detail/program-detail.tsx";
 import { CommandDetailPage } from "./components/detail/command-detail.tsx";
 import { ProcessDetailPage } from "./components/detail/process-detail.tsx";
+import { ServiceDetailPage } from "./components/detail/service-detail.tsx";
 import { DesktopDetailPage } from "./components/detail/desktop-detail.tsx";
 
-const TAB_INDEX: Record<Tab, number> = { programs: 0, commands: 1, processes: 2, desktop: 3 };
+const TAB_INDEX: Record<Tab, number> = { programs: 0, commands: 1, processes: 2, services: 3, desktop: 4 };
 
 function useHashRoute(): Route {
   const [route, setRoute] = React.useState<Route>(() => parseHash(window.location.hash));
@@ -97,6 +99,7 @@ export function App(): React.ReactElement {
             {route.tab === "programs" && <ProgramDetailPage id={String(route.id)} />}
             {route.tab === "commands" && <CommandDetailPage id={Number(route.id)} />}
             {route.tab === "processes" && <ProcessDetailPage id={Number(route.id)} />}
+            {route.tab === "services" && <ServiceDetailPage id={Number(route.id)} />}
             {route.tab === "desktop" && <DesktopDetailPage id={Number(route.id)} />}
           </>
         ) : (
@@ -109,6 +112,9 @@ export function App(): React.ReactElement {
             </TabPanel>
             <TabPanel header="Процессы" leftIcon="pi pi-cog">
               <ProcessesTab />
+            </TabPanel>
+            <TabPanel header="Службы" leftIcon="pi pi-wrench">
+              <ServicesTab />
             </TabPanel>
             <TabPanel header="Ярлыки" leftIcon="pi pi-desktop">
               <DesktopTab />

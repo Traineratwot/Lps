@@ -38,6 +38,7 @@ export async function runList(config: LpsConfig, entity: string | undefined, fla
       case "packages": await listPackages(db, flags); break;
       case "desktop": await listDesktop(db, flags); break;
       case "processes": await listProcesses(db, flags); break;
+      case "services": await listServices(db, flags); break;
       default:
         console.error(red(`Unknown entity: ${entity ?? "(none)"}. Use commands|packages|desktop|processes`));
         process.exitCode = 1;
@@ -129,6 +130,63 @@ async function listDesktop(db: Db, flags: Flags): Promise<void> {
   console.log(dim(`showing ${rows.length} rows`));
 }
 
+async function listServices(db: Db, flags: Flags): Promise<void> {
+  const search = flagString(flags, "search");
+  const rows = await db.systemdService.findMany({
+    where: {
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search } },
+              { description: { contains: search } },
+              { execStart: { contains: search } },
+            ],
+          }
+        : {}),
+    },
+    include: { package: true, command: true },
+    orderBy: [{ activeState: "desc" }, { name: "asc" }],
+    take: limitOf(flags),
+  });
+  console.log(renderTable(
+    ["NAME", "STATE", "ENABLED", "PID", "EXEC", "PACKAGE"],
+    rows.map((r) => [
+      r.name,
+      r.activeState || "-",
+      r.enabledState || "-",
+      r.mainPid ? String(r.mainPid) : "-",
+      (r.execStartPath || r.execStart || "-").slice(0, 34),
+      r.package?.name ?? "-",
+    ]),
+  ));
+  console.log(dim(`showing ${rows.length} rows`));
+}
+
+async function showService(db: Db, name: string): Promise<void> {
+  const rows = await db.systemdService.findMany({
+    where: { name: { contains: name } },
+    include: { package: true, command: true },
+  });
+  if (rows.length === 0) {
+    console.error(red(`service not found: ${name}`));
+    process.exitCode = 1;
+    return;
+  }
+  for (const s of rows) {
+    console.log(`${bold(s.name)}`);
+    if (s.description) console.log(`  ${dim("description:")} ${s.description}`);
+    console.log(`  ${dim("state:")}      ${s.activeState || "?"}/${s.subState || "?"}  ${dim("enabled:")} ${s.enabledState || "?"}`);
+    if (s.mainPid) console.log(`  ${dim("mainPid:")}   ${s.mainPid}`);
+    if (s.user) console.log(`  ${dim("user:")}      ${s.user}`);
+    if (s.wantedBy) console.log(`  ${dim("wantedBy:")}  ${s.wantedBy}`);
+    if (s.execStart) console.log(`  ${dim("execStart:")} ${s.execStart.slice(0, 100)}`);
+    if (s.unitPath) console.log(`  ${dim("unit:")}      ${s.unitPath}`);
+    if (s.package) console.log(`  ${dim("package:")}   ${green(s.package.name)} ${dim(`${s.package.type} ${s.package.version}`)}`);
+    if (s.command) console.log(`  ${dim("command:")}   ${cyan(s.command.name)} ${dim(`(${s.command.realPath || "-"})`)}`);
+    console.log("");
+  }
+}
+
 async function listProcesses(db: Db, flags: Flags): Promise<void> {
   const rows = await db.process.findMany({
     include: {
@@ -174,6 +232,8 @@ export async function runShow(config: LpsConfig, target: string | undefined, _fl
       await showProcess(db, Number(target));
     } else if (target.startsWith("pkg:")) {
       await showPackage(db, target.slice(4));
+    } else if (target.startsWith("svc:") || target.endsWith(".service")) {
+      await showService(db, target.replace(/^svc:/, ""));
     } else {
       await showCommand(db, target);
     }

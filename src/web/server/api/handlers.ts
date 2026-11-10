@@ -8,6 +8,8 @@ import type {
   ListResp,
   ProcessDetail,
   ProcessRow,
+  ServiceDetail,
+  ServiceRow,
   StatsResp,
 } from "../../types.ts";
 import type { ApiRoute } from "./router.ts";
@@ -105,6 +107,14 @@ export async function handleApi(ctx: ApiCtx, route: ApiRoute): Promise<Response>
       return detail ? json(detail) : json({ error: "not found" }, 404);
     }
 
+    case "services":
+      return json(await listServices(db, route.query));
+
+    case "service": {
+      const detail = await serviceDetail(db, route.id);
+      return detail ? json(detail) : json({ error: "not found" }, 404);
+    }
+
     case "desktop":
       return json(await listDesktop(db, route.query, iconsDir(ctx.config)));
 
@@ -119,11 +129,12 @@ export async function handleApi(ctx: ApiCtx, route: ApiRoute): Promise<Response>
 }
 
 async function getStats(db: Db): Promise<StatsResp> {
-  const [commands, packages, desktopEntries, processes, byType, byKind, lastScan] = await Promise.all([
+  const [commands, packages, desktopEntries, processes, services, byType, byKind, lastScan] = await Promise.all([
     db.command.count(),
     db.package.count(),
     db.desktopEntry.count(),
     db.process.count(),
+    db.systemdService.count(),
     db.package.groupBy({ by: ["type"], _count: { _all: true } }),
     db.command.groupBy({ by: ["kind"], _count: { _all: true } }),
     db.scanRun.findFirst({ orderBy: { startedAt: "desc" }, select: { startedAt: true } }),
@@ -133,6 +144,7 @@ async function getStats(db: Db): Promise<StatsResp> {
     packages,
     desktopEntries,
     processes,
+    services,
     packagesByType: Object.fromEntries(byType.map((r) => [r.type, r._count._all])),
     commandsByKind: Object.fromEntries(byKind.map((r) => [r.kind, r._count._all])),
     lastScan: lastScan?.startedAt.toISOString() ?? null,
@@ -299,6 +311,99 @@ async function processDetail(db: Db, id: number): Promise<ProcessDetail | null> 
       state: s.state,
       threads: s.threads,
     })),
+  };
+}
+
+async function listServices(db: Db, query: Record<string, string>): Promise<ListResp<ServiceRow>> {
+  const { page, pageSize } = paging(query);
+  const where = {
+    ...(query.q
+      ? {
+          OR: [
+            { name: { contains: query.q } },
+            { description: { contains: query.q } },
+            { execStart: { contains: query.q } },
+          ],
+        }
+      : {}),
+    ...(query.active ? { activeState: query.active } : {}),
+    ...(query.enabled ? { enabledState: query.enabled } : {}),
+  };
+  const [total, rows] = await Promise.all([
+    db.systemdService.count({ where }),
+    db.systemdService.findMany({
+      where,
+      include: { package: { select: { name: true } }, command: { select: { name: true } } },
+      orderBy: [{ activeState: "desc" }, { name: "asc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+  ]);
+  return {
+    items: rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      activeState: r.activeState,
+      subState: r.subState,
+      enabledState: r.enabledState,
+      execStartPath: r.execStartPath,
+      mainPid: r.mainPid,
+      packageName: r.package?.name ?? null,
+      commandName: r.command?.name ?? null,
+    })),
+    total,
+    page,
+    pageSize,
+  };
+}
+
+async function serviceDetail(db: Db, id: number): Promise<ServiceDetail | null> {
+  const r = await db.systemdService.findUnique({
+    where: { id },
+    include: {
+      package: true,
+      command: { include: { doc: true, package: { select: { name: true } }, _count: { select: { processes: true } } } },
+    },
+  });
+  if (!r) return null;
+  return {
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    activeState: r.activeState,
+    subState: r.subState,
+    enabledState: r.enabledState,
+    execStartPath: r.execStartPath,
+    mainPid: r.mainPid,
+    packageName: r.package?.name ?? null,
+    commandName: r.command?.name ?? null,
+    unitPath: r.unitPath,
+    execStart: r.execStart,
+    user: r.user,
+    wantedBy: r.wantedBy,
+    package: r.package
+      ? {
+          id: r.package.id,
+          type: r.package.type,
+          name: r.package.name,
+          version: r.package.version,
+          section: r.package.section,
+        }
+      : null,
+    command: r.command
+      ? {
+          id: r.command.id,
+          name: r.command.name,
+          kind: r.command.kind,
+          path: r.command.realPath || jsonList(r.command.paths)[0] || "",
+          paths: jsonList(r.command.paths),
+          aliases: jsonList(r.command.aliases),
+          summary: r.command.doc?.summary ?? "",
+          packageName: r.command.package?.name ?? null,
+          processCount: r.command._count.processes,
+        }
+      : null,
   };
 }
 

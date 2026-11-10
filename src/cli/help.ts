@@ -5,7 +5,7 @@ const VERSION = "0.1.0";
 const COMMANDS: Array<{ name: string; args: string; desc: string }> = [
   { name: "init", args: "", desc: "Create or upgrade the database schema (idempotent)" },
   { name: "scan", args: "[--only <stages>]", desc: "Scan the system and fill the database" },
-  { name: "list", args: "<commands|packages|desktop|processes>", desc: "List indexed entities" },
+  { name: "list", args: "<commands|packages|services|desktop|processes>", desc: "List indexed entities" },
   { name: "show", args: "<name|pkg|pid>", desc: "Show a full card for a command/package/process" },
   { name: "logs", args: "<pid|name>", desc: "Show process snapshot history" },
   { name: "export", args: "[--format json|csv]", desc: "Export index to stdout or a file" },
@@ -14,7 +14,7 @@ const COMMANDS: Array<{ name: string; args: string; desc: string }> = [
   { name: "db", args: "path", desc: "Show database file path" },
 ];
 
-const SCAN_STAGES = "commands, docs, packages, desktop, processes";
+const SCAN_STAGES = "commands, docs, packages, services, desktop, processes";
 
 export function printGlobalHelp(): void {
   const lines: string[] = [];
@@ -67,7 +67,7 @@ export function printCommandHelp(command: string): void {
       lines.push(`  --users <a,b>     Users for alias scanning`);
       break;
     case "list":
-      lines.push(`  lps list commands|packages|desktop|processes`);
+      lines.push(`  lps list commands|packages|services|desktop|processes`);
       lines.push(`  --type <t>        Filter packages: deb|flatpak|appimage`);
       lines.push(`  --search <q>      Substring filter on name`);
       lines.push(`  --limit <n>       Max rows (default 50)`);
@@ -75,7 +75,8 @@ export function printCommandHelp(command: string): void {
       break;
     case "show":
       lines.push(`  lps show <name>        command card`);
-      lines.push(`  lps show pkg:<name>    package card`);
+      lines.push(`  lps show pkg:<name>    package card
+      lps show svc:<name>    systemd service card`);
       lines.push(`  lps show <pid>         process card`);
       break;
     case "logs":

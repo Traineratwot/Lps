@@ -1,8 +1,8 @@
 import React from "react";
 import { Button } from "primereact/button";
-import { navigate } from "../../router.ts";
+import { navigate, type Tab } from "../../router.ts";
 
-export function BackButton({ tab }: { tab: "programs" | "commands" | "processes" | "desktop" }): React.ReactElement {
+export function BackButton({ tab }: { tab: Tab }): React.ReactElement {
   return (
     <button type="button" className="back-link" onClick={() => navigate({ tab, id: null } as never)}>
       <i className="pi pi-arrow-left" /> Назад к списку

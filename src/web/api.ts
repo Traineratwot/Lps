@@ -6,6 +6,8 @@ import type {
   ListResp,
   ProcessDetail,
   ProcessRow,
+  ServiceDetail,
+  ServiceRow,
   ProgramCard,
   ProgramDetail,
   StatsResp,
@@ -43,4 +45,7 @@ export const api = {
   process: (id: number) => get<ProcessDetail>(`/api/processes/${id}`),
   desktop: (params: Record<string, string | number | boolean | undefined>) =>
     get<ListResp<DesktopRow>>(`/api/desktop${qs(params)}`),
+  services: (params: Record<string, string | number | boolean | undefined>) =>
+    get<ListResp<ServiceRow>>(`/api/services${qs(params)}`),
+  service: (id: number) => get<ServiceDetail>(`/api/services/${id}`),
 };

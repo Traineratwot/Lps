@@ -10,6 +10,8 @@ export type ApiRoute =
   | { name: "commandDoc"; id: number; query: Record<string, string> }
   | { name: "processes"; query: Record<string, string> }
   | { name: "process"; id: number }
+  | { name: "services"; query: Record<string, string> }
+  | { name: "service"; id: number }
   | { name: "desktop"; query: Record<string, string> }
   | { name: "desktopItem"; id: number }
   | { name: "icon"; id: number };
@@ -45,6 +47,7 @@ export function matchApi(method: string, pathname: string, params: URLSearchPara
     if (a === "commands") return { name: "commands", query };
     if (a === "processes") return { name: "processes", query };
     if (a === "desktop") return { name: "desktop", query };
+    if (a === "services") return { name: "services", query };
     return "unknown";
   }
   if (segments.length === 2) {
@@ -60,6 +63,10 @@ export function matchApi(method: string, pathname: string, params: URLSearchPara
     if (a === "desktop") {
       const id = numericId(b!);
       return id != null ? { name: "desktopItem", id } : "unknown";
+    }
+    if (a === "services") {
+      const id = numericId(b!);
+      return id != null ? { name: "service", id } : "unknown";
     }
     if (a === "icons") {
       const id = numericId(b!);

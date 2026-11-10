@@ -43,6 +43,7 @@ model Command {
   doc       CommandDoc?
   desktopEntries DesktopEntry[]
   processes Process[]
+  services  SystemdService[]
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
@@ -77,8 +78,33 @@ model Package {
   commands     Command[]
   desktopEntries DesktopEntry[]
   processes    Process[]
+  services     SystemdService[]
 
   @@unique([type, name])
+}
+
+model SystemdService {
+  id           Int      @id @default(autoincrement())
+  name         String   @unique                    // "ssh.service"
+  description  String   @default("")
+  unitPath     String   @default("")               // /lib/systemd/system/ssh.service
+  activeState  String   @default("")               // active | inactive | failed | ...
+  subState     String   @default("")               // running | exited | dead | ...
+  enabledState String   @default("")               // enabled | disabled | static | masked
+  execStart    String   @default("")               // raw ExecStart= line
+  execStartPath String  @default("")               // extracted executable path
+  user         String   @default("")               // User=
+  wantedBy     String   @default("")               // [Install] WantedBy=
+  mainPid      Int?
+  packageId    Int?
+  package      Package? @relation(fields: [packageId], references: [id])
+  commandId    Int?
+  command      Command? @relation(fields: [commandId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([activeState])
+  @@index([enabledState])
 }
 
 model DesktopEntry {

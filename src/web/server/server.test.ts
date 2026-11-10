@@ -88,6 +88,23 @@ beforeAll(async () => {
     },
   });
 
+  // systemd service linked to package + command
+  await db.systemdService.create({
+    data: {
+      name: "htop.service",
+      description: "Test service",
+      unitPath: "/lib/systemd/system/htop.service",
+      activeState: "active",
+      subState: "running",
+      enabledState: "enabled",
+      execStart: "/usr/bin/htop --daemon",
+      execStartPath: "/usr/bin/htop",
+      mainPid: 4242,
+      packageId: pkg.id,
+      commandId: cmd.id,
+    },
+  });
+
   // web root fixture
   const webRoot = join(dir, "web");
   mkdirSync(webRoot, { recursive: true });
@@ -173,6 +190,25 @@ describe("web server", () => {
     const cmdId = (cmds.items as AnyCard[])[0]!.id as number;
     const detail = await json(await fetch(`${server.url}/api/commands/${cmdId}`));
     expect((detail.doc as Record<string, unknown>).summary).toBe("interactive process viewer");
+  });
+
+  test("services list and detail link to package and command", async () => {
+    const list = await json(await fetch(`${server.url}/api/services?q=htop`));
+    expect(list.total).toBe(1);
+    const row = (list.items as AnyCard[])[0]!;
+    expect(row.name).toBe("htop.service");
+    expect(row.activeState).toBe("active");
+    expect(row.packageName).toBe("htop");
+    expect(row.commandName).toBe("htop");
+
+    const detail = await json(await fetch(`${server.url}/api/services/${row.id}`));
+    expect(detail.unitPath).toBe("/lib/systemd/system/htop.service");
+    expect(detail.execStartPath).toBe("/usr/bin/htop");
+    expect((detail.package as Record<string, unknown>).name).toBe("htop");
+    expect((detail.command as Record<string, unknown>).name).toBe("htop");
+
+    const missing = await fetch(`${server.url}/api/services/9999`);
+    expect(missing.status).toBe(404);
   });
 
   test("icons: served inside iconsDir, rejected outside", async () => {
