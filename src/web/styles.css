@@ -130,6 +130,36 @@ body {
   padding: 0.35rem 0;
 }
 
+/* Tab bar: icon/label gap and airier rows */
+.p-tabview .p-tabview-nav li .p-tabview-nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding-top: 1.05rem;
+  padding-bottom: 1.05rem;
+}
+
+/* Search field: icon sits inside the border, away from the edge */
+.search-box {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.search-box > i {
+  position: absolute;
+  left: 0.95rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-color-secondary, #64748b);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.search-box > .p-inputtext {
+  padding-left: 2.75rem;
+}
+
 .kv {
   display: grid;
   grid-template-columns: 160px 1fr;

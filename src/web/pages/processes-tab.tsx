@@ -32,7 +32,7 @@ export function ProcessesTab(): React.ReactElement {
   return (
     <div>
       <div className="toolbar-row">
-        <span className="p-input-icon-left">
+        <span className="search-box">
           <i className="pi pi-search" />
           <InputText
             value={q}
@@ -41,7 +41,7 @@ export function ProcessesTab(): React.ReactElement {
               setPage(1);
             }}
             placeholder="Поиск по cmdline, exe, user…"
-            style={{ width: "22rem", paddingLeft: "2.5rem" }}
+            style={{ width: "22rem" }}
           />
         </span>
         <span className="stat-pill">{total} найдено</span>

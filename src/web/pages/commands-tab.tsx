@@ -44,7 +44,7 @@ export function CommandsTab(): React.ReactElement {
   return (
     <div>
       <div className="toolbar-row">
-        <span className="p-input-icon-left">
+        <span className="search-box">
           <i className="pi pi-search" />
           <InputText
             value={q}
@@ -53,7 +53,7 @@ export function CommandsTab(): React.ReactElement {
               setPage(1);
             }}
             placeholder="Поиск команд…"
-            style={{ width: "18rem", paddingLeft: "2.5rem" }}
+            style={{ width: "18rem" }}
           />
         </span>
         <Dropdown

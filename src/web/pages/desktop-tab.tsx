@@ -36,7 +36,7 @@ export function DesktopTab(): React.ReactElement {
   return (
     <div>
       <div className="toolbar-row">
-        <span className="p-input-icon-left">
+        <span className="search-box">
           <i className="pi pi-search" />
           <InputText
             value={q}
@@ -45,7 +45,7 @@ export function DesktopTab(): React.ReactElement {
               setPage(1);
             }}
             placeholder="Поиск ярлыков…"
-            style={{ width: "18rem", paddingLeft: "2.5rem" }}
+            style={{ width: "18rem" }}
           />
         </span>
         <div className="flex align-items-center gap-2">
