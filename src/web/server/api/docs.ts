@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { runCommand } from "../../../core/util/exec.ts";
 import { readManSource, summaryFromTroff } from "../../../modules/docs/man.ts";
-import { isDangerousHelpCommand } from "../../../modules/docs/safety.ts";
+import { isDangerousHelpCommand, isElfBinary } from "../../../modules/docs/safety.ts";
 import { stripAnsi } from "../../../core/util/text.ts";
 
 export type DocText = {
@@ -63,6 +63,15 @@ export function renderHelpPage(name: string, path: string, kind: string, aliasOf
       kind: "help",
       source: "skipped",
       text: "Вывод справки не запрашивается: команда входит в список опасных для запуска (см. modules/docs/safety.ts).",
+      truncated: false,
+    };
+  }
+  // scripts ignore arguments and run their full body — never execute
+  if (path && existsSync(path) && !isElfBinary(path)) {
+    return {
+      kind: "help",
+      source: "skipped",
+      text: "Вывод справки не запрашивается: это скрипт, а не ELF-бинарь (скрипты могут игнорировать аргументы и выполнять свои действия).",
       truncated: false,
     };
   }

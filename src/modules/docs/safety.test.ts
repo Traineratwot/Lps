@@ -1,6 +1,18 @@
-import { describe, expect, test } from "bun:test";
-import { isDangerousHelpCommand } from "./safety.ts";
+import { afterAll, describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { isDangerousHelpCommand, isElfBinary } from "./safety.ts";
 import { getHelpSummary } from "./help.ts";
+
+const dir = mkdtempSync(join(tmpdir(), "lps-safety-"));
+const elfPath = join(dir, "fake-elf");
+const scriptPath = join(dir, "fake-script");
+// minimal ELF magic; only the first 4 bytes are inspected
+writeFileSync(elfPath, Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46]), Buffer.alloc(64)]));
+writeFileSync(scriptPath, "#!/bin/sh\nreboot\n");
+
+afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("isDangerousHelpCommand", () => {
   test("flags the reboot/shutdown family", () => {
@@ -31,11 +43,27 @@ describe("isDangerousHelpCommand", () => {
   });
 });
 
+describe("isElfBinary", () => {
+  test("detects ELF magic and rejects scripts", () => {
+    expect(isElfBinary(elfPath)).toBe(true);
+    expect(isElfBinary(scriptPath)).toBe(false);
+    expect(isElfBinary("/nonexistent")).toBe(false);
+    // system binaries are ELF
+    expect(isElfBinary("/bin/sh")).toBe(true);
+  });
+});
+
 describe("getHelpSummary guard", () => {
   test("refuses to execute dangerous commands (no help collected)", () => {
     // returns null before any spawn — safe to call in tests
     expect(getHelpSummary("reboot", "/sbin/reboot", "exec")).toBeNull();
     expect(getHelpSummary("shutdown", "/sbin/shutdown", "exec")).toBeNull();
     expect(getHelpSummary("mkfs.ext4", "/sbin/mkfs.ext4", "exec")).toBeNull();
+  });
+
+  test("refuses to execute scripts (rename-user regression: script body ran on --help)", () => {
+    // the script content is `reboot` — if this were executed the test box dies;
+    // the guard must return before any spawn
+    expect(getHelpSummary("fake-script", scriptPath, "exec")).toBeNull();
   });
 });

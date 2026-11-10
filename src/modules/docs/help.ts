@@ -1,7 +1,7 @@
 import type { CommandKind } from "../../core/types.ts";
 import { runCommand } from "../../core/util/exec.ts";
 import { stripAnsi } from "../../core/util/text.ts";
-import { isDangerousHelpCommand } from "./safety.ts";
+import { isDangerousHelpCommand, isElfBinary } from "./safety.ts";
 
 export type HelpSummary = {
   summary: string;
@@ -34,6 +34,9 @@ export function getHelpSummary(
   if (kind === "alias") return null;
   // never execute dangerous binaries for a mere summary (safety.ts)
   if (isDangerousHelpCommand(name) || isDangerousHelpCommand(path)) return null;
+  // scripts ignore arguments and may do real work (--help on a first-boot
+  // script = its full body); only native binaries answer flags safely
+  if (!isElfBinary(path)) return null;
 
   if (kind === "builtin") {
     if (!Bun.which("bash")) return null;

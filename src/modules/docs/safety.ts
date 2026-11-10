@@ -10,6 +10,7 @@
  *   1. never execute these commands at all (denylist below);
  *   2. execute everything else with dropped privileges (see runCommand).
  */
+import { closeSync, openSync, readSync } from "node:fs";
 
 const DANGEROUS = new Set([
   // system state
@@ -35,4 +36,23 @@ export function isDangerousHelpCommand(nameOrPath: string): boolean {
     /^fsck(\.|$)/.test(base) ||
     /^(lv|vg|pv)(create|remove|change|reduce|extend|rename)$/.test(base)
   );
+}
+
+/**
+ * True when the file is a native ELF binary. Scripts (shebang) are skipped
+ * for `--help`: a provisioning script like `rename-user` (Raspberry Pi
+ * first-boot) ignores its arguments entirely and ends with `reboot` —
+ * executing it with `--help` rebooted the machine (see PROBLEMS.md P13).
+ * Real ELF CLIs virtually always parse their flags.
+ */
+export function isElfBinary(path: string): boolean {
+  try {
+    const fd = openSync(path, "r");
+    const head = Buffer.alloc(4);
+    readSync(fd, head, 0, 4, 0);
+    closeSync(fd);
+    return head[0] === 0x7f && head[1] === 0x45 && head[2] === 0x4c && head[3] === 0x46;
+  } catch {
+    return false;
+  }
 }
